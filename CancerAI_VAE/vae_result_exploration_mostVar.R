@@ -89,20 +89,18 @@ for(data_in in c("vae_lr_dt","exprT_dt")) {
 
 lds_var <- apply(vae_lr_dt, 2, var)
 stopifnot(!is.na(lds_var))
-nTopVarLDs <- 10
+nTopVarLDs <- 5
 mostVar_lds <- order(lds_var, decreasing = TRUE)[1:nTopVarLDs]
 
 all_ld_pairs <- combn(x=c(mostVar_lds), m=2)
 
 i=1
 for(i in c(1:ncol(all_ld_pairs))) {
-  
   ld1 <- all_ld_pairs[1,i]
   ld2 <- all_ld_pairs[2,i]
   
   ld1_rank <- which(mostVar_lds == ld1)
   ld2_rank <- which(mostVar_lds == ld2)
-  
   
   # dev.off()
   outFile <- file.path(outFolder, paste0("LD", ld1, "var", ld1_rank, "_vs_LD", ld2, "var", ld2_rank, ".", plotType ))
@@ -121,7 +119,6 @@ for(i in c(1:ncol(all_ld_pairs))) {
          bty="n")
   foo <- dev.off()
   cat(paste0("... written: ", outFile, "\n"))
-  
 }
 
 
