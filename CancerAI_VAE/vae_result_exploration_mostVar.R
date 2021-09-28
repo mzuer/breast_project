@@ -6,6 +6,9 @@ dir.create(outFolder, recursive = TRUE)
 plotType <- "png"
 myHeight <- 400
 myWidth <- 400
+plotTypeGG <- "svg"
+myHeightGG <- 7
+myWidthGG <- 7
 
 indata_file <- file.path("../data/johansson_data_relative_ratios_to_pool_1000mostVar.txt")
 vae_latent_repr_file <- file.path("BREAST_PROTEO_JOHANSSONMOSTVAR_VAE/latent_repr_100LD_256DS_150_128_0.2_1_mmd.csv")
@@ -86,6 +89,57 @@ for(data_in in c("vae_lr_dt","exprT_dt")) {
 }
 
 
+lds_var <- apply(vae_lr_dt, 2, var)
+stopifnot(!is.na(lds_var))
+nTopVarLDs <- 5
+lds_var_ord <- order(lds_var, decreasing = TRUE)
+mostVar_lds <- lds_var_ord[1:nTopVarLDs]
+
+all_ld_pairs <- combn(x=c(mostVar_lds), m=2)
+
+i=1
+
+# outFile <- file.path(outFolder, paste0("LD", ld1, "var", ld1_rank, "_vs_LD", ld2, "var", ld2_rank, ".", plotType ))
+outFile <- file.path(outFolder, paste0("LDi_vsLDj_all_topVarRanks.", plotTypeGG))
+# do.call(plotType, list(outFile, height=myHeight*3, width=myWidth*3))
+do.call(plotTypeGG, list(outFile, height=myHeightGG*3, width=myWidthGG*2.5))
+
+par(mfrow=c(4,3))
+
+for(i in c(1:ncol(all_ld_pairs))) {
+  ld1 <- all_ld_pairs[1,i]
+  ld2 <- all_ld_pairs[2,i]
+  
+  ld1_rank <- which(mostVar_lds == ld1)
+  ld2_rank <- which(mostVar_lds == ld2)
+  
+  # dev.off()
+  # outFile <- file.path(outFolder, paste0("LD", ld1, "var", ld1_rank, "_vs_LD", ld2, "var", ld2_rank, ".", plotType ))
+  # do.call(plotType, list(outFile, height=myHeight, width=myWidth))
+  plot(x = vae_lr_dt[,ld1],
+       y = vae_lr_dt[,ld2],
+       xlab=paste0("LD", ld1, " (var rank: ", ld1_rank, ")"), 
+       ylab=paste0("LD", ld2, " (var rank: ", ld2_rank, ")"),
+       main=paste0("Samp. in LD"),
+       cex=1.2,
+       cex.axis=2,
+       cex.lab=2,
+       pch=16,
+       col=as.numeric(annot_dt[,paste0(col_lab)]))
+  mtext(text=paste0("# samp=",nSamp, "; # features=", ncol(vae_lr_dt)), side=3)
+  legend("topleft", legend=as.character(levels(annot_dt[,paste0(col_lab)])),
+         pch=16, 
+         col=as.numeric(unique(annot_dt[,paste0(col_lab)])), 
+         bty="n")
+  # foo <- dev.off()
+  # cat(paste0("... written: ", outFile, "\n"))
+}
+foo <- dev.off()
+cat(paste0("... written: ", outFile, "\n"))
+
+
+################################ least var for each subtype
+
 # retrieve for each subtype the least var
 
 tmp_dt <- vae_lr_dt
@@ -96,37 +150,45 @@ stopifnot(!is.na(tmp_dt$PAM50))
 nLDs=100
 
 x=tmp_dt[tmp_dt$PAM50==tmp_dt$PAM50[1],]
-by(tmp_dt, tmp_dt$PAM50, function(x){
+leastVar <- c(by(tmp_dt, tmp_dt$PAM50, function(x){
+  subt <- unique(x$PAM50)
   x$PAM50 <- NULL
   samp_vars <- apply(x, 2, var)
   stopifnot(length(samp_vars) == nLDs)
-  which.min(samp_vars)
-})
+  setNames(which.min(samp_vars), subt)
+}))
 
+stopifnot(!duplicated(leastVar))
 
-lds_var <- apply(vae_lr_dt, 2, var)
-stopifnot(!is.na(lds_var))
-nTopVarLDs <- 5
-mostVar_lds <- order(lds_var, decreasing = TRUE)[1:nTopVarLDs]
-
-all_ld_pairs <- combn(x=c(mostVar_lds), m=2)
+all_ld_pairs <- combn(x=c(leastVar), m=2)
 
 i=1
+
+# outFile <- file.path(outFolder, paste0("LD", ld1, "var", ld1_rank, "_vs_LD", ld2, "var", ld2_rank, ".", plotType ))
+outFile <- file.path(outFolder, paste0("LDi_vsLDj_all_subtypeLeastVarRanks.", plotTypeGG))
+# do.call(plotType, list(outFile, height=myHeight*3, width=myWidth*3))
+do.call(plotTypeGG, list(outFile, height=myHeightGG*3, width=myWidthGG*2.5))
+
+par(mfrow=c(4,3))
+
 for(i in c(1:ncol(all_ld_pairs))) {
   ld1 <- all_ld_pairs[1,i]
   ld2 <- all_ld_pairs[2,i]
   
-  ld1_rank <- which(mostVar_lds == ld1)
-  ld2_rank <- which(mostVar_lds == ld2)
+  ld1_rank <- names(leastVar)[leastVar == ld1]
+  ld2_rank <- names(leastVar)[leastVar == ld2]
   
   # dev.off()
-  outFile <- file.path(outFolder, paste0("LD", ld1, "var", ld1_rank, "_vs_LD", ld2, "var", ld2_rank, ".", plotType ))
-  do.call(plotType, list(outFile, height=myHeight, width=myWidth))
+  # outFile <- file.path(outFolder, paste0("LD", ld1, "var", ld1_rank, "_vs_LD", ld2, "var", ld2_rank, ".", plotType ))
+  # do.call(plotType, list(outFile, height=myHeight, width=myWidth))
   plot(x = vae_lr_dt[,ld1],
        y = vae_lr_dt[,ld2],
-       xlab=paste0("LD", ld1, " (var rank: ", ld1_rank, ")"), 
-       ylab=paste0("LD", ld2, " (var rank: ", ld2_rank, ")"),
+       xlab=paste0("LD", ld1, " (least var. for: ", ld1_rank, ")"), 
+       ylab=paste0("LD", ld2, " (least var. for: ", ld2_rank, ")"),
        main=paste0("Samp. in LD"),
+       cex=1.2,
+       cex.axis=2,
+       cex.lab=2,
        pch=16,
        col=as.numeric(annot_dt[,paste0(col_lab)]))
   mtext(text=paste0("# samp=",nSamp, "; # features=", ncol(vae_lr_dt)), side=3)
@@ -134,11 +196,10 @@ for(i in c(1:ncol(all_ld_pairs))) {
          pch=16, 
          col=as.numeric(unique(annot_dt[,paste0(col_lab)])), 
          bty="n")
-  foo <- dev.off()
-  cat(paste0("... written: ", outFile, "\n"))
+  # foo <- dev.off()
+  # cat(paste0("... written: ", outFile, "\n"))
 }
-
-
-
+foo <- dev.off()
+cat(paste0("... written: ", outFile, "\n"))
 
 
