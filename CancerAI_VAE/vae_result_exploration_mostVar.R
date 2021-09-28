@@ -86,6 +86,23 @@ for(data_in in c("vae_lr_dt","exprT_dt")) {
 }
 
 
+# retrieve for each subtype the least var
+
+tmp_dt <- vae_lr_dt
+stopifnot(rownames(tmp_dt) %in% annot_dt$Tumor.ID)
+tmp_dt$PAM50 <- samp2pam50[rownames(tmp_dt)]
+stopifnot(!is.na(tmp_dt$PAM50))  
+
+nLDs=100
+
+x=tmp_dt[tmp_dt$PAM50==tmp_dt$PAM50[1],]
+by(tmp_dt, tmp_dt$PAM50, function(x){
+  x$PAM50 <- NULL
+  samp_vars <- apply(x, 2, var)
+  stopifnot(length(samp_vars) == nLDs)
+  which.min(samp_vars)
+})
+
 
 lds_var <- apply(vae_lr_dt, 2, var)
 stopifnot(!is.na(lds_var))
