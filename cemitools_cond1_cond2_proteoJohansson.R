@@ -1,11 +1,6 @@
 
 # Rscript cemitools_cond1_cond2_proteo_Johansson.R
 
-
-cond1 <- "LumB"
-cond2 <- "LumA"
-annotCol <- "PAM50.subtype"
-
 cond1 <- "HER2"
 cond2 <- "LumA"
 annotCol <- "PAM50.subtype"
@@ -19,6 +14,11 @@ plotType <- "png"
 myWidth <- 400
 myHeight <- 400
 
+
+cond1 <- "LumB"
+cond2 <- "LumA"
+annotCol <- "PAM50.subtype"
+
 outFolder <- file.path("CEMITOOLS_COND1_COND2_PROTEO_JOHANSSON", paste0("test_", cond1, "_vs_ref_", cond2))
 dir.create(outFolder, recursive=TRUE)
 
@@ -26,6 +26,14 @@ dir.create(outFolder, recursive=TRUE)
 gmt_file <- "c5.go.bp.v7.4.symbols.gmt"
 
 library("CEMiTool")
+
+
+library(aracne.networks)
+data("regulonbrca")
+
+# look at the size of aracne regulon
+
+min_mod_size <- min(unlist(lapply(brca_regul, function(x)length(x[["tfmode"]]))))
 
 ####################################
 ### retrieve proteo data
@@ -121,28 +129,6 @@ cem_cond12 <- cemitool(as.data.frame(cond12_dt), cemi_annot_dt)
 # - Beta x R2 plot: null
 # - Mean connectivity plot: null
 
-cem_cond1 <- cemitool(as.data.frame(cond1_dt))
-cem_cond1
-# CEMiTool Object
-# - Number of modules: 7 
-# - Modules (data.frame: 567x2): 
-#   genes modules
-# 1   STC2      M3
-# 2   CHGA      M2
-# 3 SH3BGR      M3
-# - Expression file: data.frame with 9995 genes and 9 samples
-# - Selected data: 567 genes selected
-# - Gene Set Enrichment Analysis: null
-# - Over Representation Analysis: null
-# - Profile plot: ok
-# - Enrichment plot: null
-# - ORA barplot: null
-# - Beta x R2 plot: null
-# - Mean connectivity plot: null
-
-# As a default, the cemitool function first performs a filtering of the gene expression data before running the remaining analyses.
-  # This filtering is done in accordance to gene variance.
-  # In this example the filtering step has reduced the gene number to 567.
 
 
 ####################################
@@ -164,34 +150,21 @@ head(module_genes(cem_cond12))
 # 5   SMCO3             M3
 # 6    STC2             M3
 
-nmodules(cem_cond1)
-## [1] 7
-
-head(module_genes(cem_cond1))
-# genes modules
-# 1    STC2      M3
-# 2    CHGA      M2
-# 3  SH3BGR      M3
-# 4     MGP      M3
-# 5    CPB1      M1
-# 6 CEACAM6      M1
-
 # Genes that are allocated to Not.Correlated are genes that are not clustered into any module.
 
 # If you wish to adjust the module definition parameters of your CEMiTool object, use find_modules(cem).
-find_modules(cem_cond12)
-find_modules(cem_cond1)
+find_modules(cem_cond12, min_ngen = 20)
 
 nTop_connect <- 5
 
 # get_hubs function to identnTop_connectify the top n genes with the highest connectivity in each module:
-cond1_hubs <- get_hubs(cem_cond1,nTop_connect) 
+cond12_hubs <- get_hubs(cem_cond12,nTop_connect) 
 
 # A summary statistic of the expression data within each module (either the module mean or eigengene) 
 # can be obtained using: 
-summary_stat <- mod_summary(cem_cond1)
+summary_stat <- mod_summary(cem_cond12)
 
-generate_report(cem_cond1)
+generate_report(cem_cond12)
 
 ####################################
 ### Module enrichment
@@ -318,7 +291,6 @@ moi_10_coexpr_dt <- foreach(i = 1:ncol(gmoi_pairs), .combine='rbind') %dopar% {
   
 }
 
-
 # discussion here about signed or unsigned
 # https://peterlangfelder.com/2018/11/25/signed-or-unsigned-which-network-type-is-preferable/
 #   
@@ -370,6 +342,7 @@ net_obj <- intergraph::asNetwork(ig_obj)
 m <- network::as.matrix.network.adjacency(net_obj)
 plotcord <- data.frame(sna::gplot.layout.fruchtermanreingold(m,NULL))
 colnames(plotcord) <- c("X1", "X2")
+plotcord$vertex.names <- as.factor(network::get.vertex.attribute(net_obj,"vertex.names"))
 
 
 edglist <- network::as.matrix.network.edgelist(net_obj)
@@ -377,7 +350,7 @@ edges <- data.frame(plotcord[edglist[, 1], ], plotcord[edglist[,  2], ])
 colnames(edges)[colnames(edges) == "X1.1"] <- "Y1"
 colnames(edges)[colnames(edges) == "X2.1"] <- "Y2"
 
-stopifnot(edges$vertex.names.1s %in% moi_dt$gene2)
+stopifnot(edges$vertex.names.1 %in% moi_dt$gene2)
 stopifnot(edges$vertex.names %in% moi_dt$gene1)
 
 edges$pair_label <- paste0(edges$vertex.names, "_", edges$vertex.names.1)
@@ -424,6 +397,41 @@ pl <- ggplot(plotcord) +
 
 
 
+#######################3 TRASH
+cem_cond1 <- cemitool(as.data.frame(cond1_dt))
+cem_cond1
+# CEMiTool Object
+# - Number of modules: 7 
+# - Modules (data.frame: 567x2): 
+#   genes modules
+# 1   STC2      M3
+# 2   CHGA      M2
+# 3 SH3BGR      M3
+# - Expression file: data.frame with 9995 genes and 9 samples
+# - Selected data: 567 genes selected
+# - Gene Set Enrichment Analysis: null
+# - Over Representation Analysis: null
+# - Profile plot: ok
+# - Enrichment plot: null
+# - ORA barplot: null
+# - Beta x R2 plot: null
+# - Mean connectivity plot: null
+
+# As a default, the cemitool function first performs a filtering of the gene expression data before running the remaining analyses.
+# This filtering is done in accordance to gene variance.
+# In this example the filtering step has reduced the gene number to 567.
+
+nmodules(cem_cond1)
+## [1] 7
+
+head(module_genes(cem_cond1))
+# genes modules
+# 1    STC2      M3
+# 2    CHGA      M2
+# 3  SH3BGR      M3
+# 4     MGP      M3
+# 5    CPB1      M1
+# 6 CEACAM6      M1
 
 
 
@@ -431,62 +439,4 @@ pl <- ggplot(plotcord) +
 
 
 
-plotcord$vertex.names <- as.factor(network::get.vertex.attribute(net_obj, 
-                                                                 "vertex.names"))
-plotcord$Degree <- network::get.vertex.attribute(net_obj, 
-                                                 
-  
-
-degrees <- igraph::degree(ig_obj, normalized = FALSE)
-ig_obj <- igraph::set_vertex_attr(ig_obj, "degree", value = degrees)
-max_n <- min(n, length(degrees))
-net_obj <- intergraph::asNetwork(ig_obj)
-m <- network::as.matrix.network.adjacency(net_obj)
-plotcord <- data.frame(sna::gplot.layout.fruchtermanreingold(m, 
-                                                             NULL))
-colnames(plotcord) <- c("X1", "X2")
-edglist <- network::as.matrix.network.edgelist(net_obj)
-edges <- data.frame(plotcord[edglist[, 1], ], plotcord[edglist[, 
-                                                               2], ])
-plotcord$vertex.names <- as.factor(network::get.vertex.attribute(net_obj, 
-                                                                 "vertex.names"))
-plotcord$Degree <- network::get.vertex.attribute(net_obj, 
-                                                 "degree")
-plotcord[, "shouldLabel"] <- FALSE
-plotcord[, "Hub"] <- ""
-int_hubs <- names(sort(degrees, decreasing = TRUE))[1:max_n]
-int_bool <- plotcord[, "vertex.names"] %in% int_hubs
-plotcord[which(int_bool), "Hub"] <- "Interaction"
-sel_vertex <- int_hubs
-if (!missing(coexp_hubs)) {
-  coexp_bool <- plotcord[, "vertex.names"] %in% coexp_hubs
-  coexp_and_int <- coexp_bool & int_bool
-  plotcord[which(coexp_bool), "Hub"] <- "Co-expression"
-  plotcord[which(coexp_and_int), "Hub"] <- "Co-expression + Interaction"
-  sel_vertex <- c(sel_vertex, coexp_hubs)
-}
-colnames(edges) <- c("X1", "Y1", "X2", "Y2")
-plotcord[which(plotcord[, "vertex.names"] %in% sel_vertex), 
-         "shouldLabel"] <- TRUE
-plotcord$Degree_cut <- cut(plotcord$Degree, breaks = 3, labels = FALSE)
-plotcord$in_mod <- TRUE
-not_in <- setdiff(plotcord[, "vertex.names"], mod_genes)
-plotcord[which(plotcord[, "vertex.names"] %in% not_in), "in_mod"] <- FALSE
-pl <- ggplot(plotcord) + geom_segment(data = edges, aes_(x = ~X1, 
-                                                         y = ~Y1, xend = ~X2, yend = ~Y2), size = 0.5, alpha = 0.5, 
-                                      colour = "#DDDDDD") + geom_point(aes_(x = ~X1, y = ~X2, 
-                                                                            size = ~Degree, alpha = ~Degree), color = color) + geom_label_repel(aes_(x = ~X1, 
-                                                                                                                                                     y = ~X2, label = ~vertex.names, color = ~Hub), box.padding = unit(1, 
-                                                                                                                                                                                                                       "lines"), data = function(x) {
-                                                                                                                                                                                                                         x[x$shouldLabel, ]
-                                                                                                                                                                                                                       }) + scale_colour_manual(values = c(`Co-expression` = "#005E87", 
-                                                                                                                                                                                                                                                           Interaction = "#540814", `Co-expression + Interaction` = "#736E0B")) + 
-  labs(title = name) + ggplot2::theme_bw(base_size = 12, 
-                                         base_family = "") + ggplot2::theme(axis.text = ggplot2::element_blank(), 
-                                                                            axis.ticks = ggplot2::element_blank(), axis.title = ggplot2::element_blank(), 
-                                                                            legend.key = ggplot2::element_blank(), panel.background = ggplot2::element_rect(fill = "white", 
-                                                                                                                                                            colour = NA), panel.border = ggplot2::element_blank(), 
-                                                                            panel.grid = ggplot2::element_blank())
-return(pl)
-}
 

@@ -27,7 +27,9 @@ library(TCGAbiolinks)
 library(viper)
 library('org.Hs.eg.db')
 library(gplots)
-
+library(ggplot2)
+library(foreach)
+library(CEMiTool)
 
 outFolder <- file.path("VIPER_COND1COND2_NETWORKS_PROTEO_JOHANSSON", paste0("test_", cond1, "_vs_ref_", cond2))
 dir.create(outFolder, recursive=TRUE)
@@ -38,6 +40,8 @@ runViper <- T
 
 library(aracne.networks)
 data("regulonbrca")
+
+gmt_file <- file.path("c5.go.bp.v7.4.symbols.gmt")
 
 ### not enough samples to run ARACne ??!
 
@@ -127,6 +131,41 @@ brca_regul <- lapply(brca_regul_gs, function(x) {
   x
 })
 
+outFile <- file.path(outFolder, "brca_regul.Rdata")
+save(brca_regul, file=outFile)
+cat(paste0("... written: ", outFile, "\n"))
+
+length(brca_regul)
+# 6054
+brca_regul_filt <- brca_regul[names(brca_regul) %in% rownames(proteo_dt)]
+length(brca_regul_filt)
+# 2978
+brca_regul_filt2 <- lapply(brca_regul_filt, function(x){
+  xtfm <- x[["tfmode"]]
+  tok <- which(names(xtfm) %in% rownames(proteo_dt))
+  xtfm2 <- xtfm[tok]
+  xlkd <- x[["likelihood"]]
+  xlkd2 <- xlkd[tok]
+  list(
+    tfmode=xtfm2, likelihood=xlkd2
+  )
+} )
+# 
+length(brca_regul_filt2)
+# 2978
+brca_regul_filt3 <- Filter(function(x) length(x[["tfmode"]]) > 0, brca_regul_filt2) 
+length(brca_regul_filt3)
+# 2976
+
+length(unique(unlist(lapply(brca_regul, function(x)names(x[["tfmode"]])))))
+#19359
+length(unique(unlist(lapply(brca_regul_filt, function(x)names(x[["tfmode"]])))))
+# 19188
+length(unique(unlist(lapply(brca_regul_filt2, function(x)names(x[["tfmode"]])))))
+# 8967
+length(unique(unlist(lapply(brca_regul_filt3, function(x)names(x[["tfmode"]])))))
+# 8967
+
 ####################################
 ### prepare expression data
 ####################################
@@ -163,6 +202,43 @@ stopifnot(dim(cond1_dt) > 0)
 
 cond2_dt <- exprDT[, colnames(exprDT) %in% cond2_samps]
 stopifnot(dim(cond2_dt) > 0)
+
+cond12_dt <- cbind(cond1_dt, cond2_dt)
+
+### check how many go in the same direction in prot data
+all_tfms_dt <- do.call(rbind, lapply(1:length(brca_regul_filt3), function(x) { 
+  tfm <- brca_regul_filt3[[x]][["tfmode"]]
+  data.frame(g1=names(brca_regul_filt3)[x],
+             g2=names(tfm),
+             tfm = as.numeric(tfm),
+             stringsAsFactors = FALSE)
+}))
+stopifnot(all_tfms_dt$g1 %in% rownames(cond12_dt))
+stopifnot(all_tfms_dt$g2 %in% rownames(cond12_dt))
+
+all_tfms_dt$prot_corr <-foreach(i = 1:nrow(all_tfms_dt), .combine='c') %dopar% {
+  g1 <- all_tfms_dt$g1[i]
+  g2 <- all_tfms_dt$g2[i]
+  if(g1 %in% rownames(cond12_dt) & g2 %in% rownames(cond12_dt)) {
+    cor(as.numeric(cond12_dt[paste0(g1),]), as.numeric(cond12_dt[paste0(g2),]))
+  } else {
+    NA
+  }
+}
+stopifnot(!is.na(all_tfms_dt))
+
+outFile <- file.path(outFolder, paste0("cmp_tfmodeARACNe_proteoCorr.", plotType))
+do.call(plotType, list(height=myHeight, width=myWidth))
+plot(x=all_tfms_dt$tfm,
+     y=all_tfms_dt$prot_corr,
+     xlab="ARACNe TFm",
+     ylab="proteo corr.")
+mtext(side=3, text=paste0("proteo corr: ", cond1, "+", cond2, " data"))
+foo <- dev.off()
+
+
+### try with brca_regul3
+brca_regul <- brca_regul_filt3
 
 ####################################
 ### Master Regulator Analysis performed by msVIPER
@@ -220,20 +296,20 @@ if(computeNullModel) {
 
 #### msViper analysis
 # we have everything for the master regulatory analysis
+outFile <- file.path(outFolder, "cond12_mrs.Rdata")
 if(runMSviper) {
-  outFile <- file.path(outFolder, "cond12_mrs.Rdata")
   cat(paste0("... start compute msVIPER..."))
   cond12_mrs <- msviper(cond12z_signature, brca_regul, cond12_nullmodel, verbose = FALSE)
   cat(paste0("... done !\n"))
   save(cond12_mrs, file=outFile)
   cat(paste0("... written: ", outFile, "\n"))
 } else {
-  outFile <- file.path(outFolder, "cond12_mrs.Rdata")
   cond12_mrs <- get(load(outFile))  
 }
 
 
 #### result summary and vizulization
+mrs_summary <- summary(cond12_mrs)
 # summary of the results
 mrs_summary <- mrs_summary[order(mrs_summary$FDR, mrs_summary$p.value, decreasing=FALSE),]
 # mrs_summary$Regulon_symb <- all_symbs[paste0(mrs_summary$Regulon)]
@@ -261,6 +337,10 @@ cat(paste0("... written: ", outFile, "\n"))
 mrs_summary_all <- summary(cond12_mrs,length(cond12_mrs$regulon))
 mrs_summary_all <- mrs_summary_all[order(mrs_summary_all$FDR, mrs_summary_all$p.value, decreasing=FALSE),]
 
+outFile <- file.path(outFolder, "mrs_summary_all.Rdata")
+save(mrs_summary_all, file=outFile)
+cat(paste0("... written: ", outFile, "\n"))
+
 #### leading edge analysis
 # msVIPER infers the relative activity of a regulatory gene based on the enrichment of its most closely-
 #   regulated targets on a given GES, but does not identify which are the target genes enriched in the GES.
@@ -287,8 +367,7 @@ go_mrs_dt <- mrs_summary_all[mrs_summary_all$FDR <= go_fdr_thresh,]
 cat(paste0("... doing GO for FDR <= ", go_fdr_thresh, " modules :\n"))
 cat(paste0("... ", nrow(go_mrs_dt), "/", nrow(mrs_summary_all), "\n"))
 
-gmt_fname <- system.file("extdata", "pathways.gmt", package = "CEMiTool")
-gmt_in <- read_gmt(gmt_fname)
+gmt_in <- read_gmt(gmt_file)
 message("Using all genes in GMT file as universe.")
 allgenes <- unique(gmt_in[, "gene"])
 
@@ -330,6 +409,12 @@ grep("prolif", ora_res_dt_signif$Description)
 
 go_signif_countdt <- data.frame(table(ora_res_dt_signif$ID))
 go_signif_countdt <- go_signif_countdt[order(go_signif_countdt$Freq, decreasing = TRUE),]
+colnames(go_signif_countdt) <- c("Description", "Freq")
+
+outFile <- file.path(outFolder, paste0(cond1, "_vs_", cond2, "_goFreq_dt.txt"))
+write.table(go_signif_countdt, file = outFile, col.names=T, row.names=F, sep="\t", quote=F)
+cat(paste0("... written: ", outFile, "\n"))
+
   
 ####################################
 ### Beyond msVIPER
