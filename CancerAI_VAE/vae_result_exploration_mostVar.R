@@ -1,4 +1,6 @@
 # Rscript vae_result_exploration.R
+library(ComplexHeatmap)
+
 
 outFolder <- file.path("VAE_RESULT_EXPLORATION_JOHANSSON_MOSTVAR")
 dir.create(outFolder, recursive = TRUE)
@@ -203,3 +205,77 @@ foo <- dev.off()
 cat(paste0("... written: ", outFile, "\n"))
 
 
+################################ complex heatmap
+
+annotation_colors <- list("PAM50"= c("Basal" = "red",
+                                     "HER2" = "pink",
+                                     "LumA" = "darkblue",
+                                     "LumB" = "lightblue",
+                                     "Normal" = "forestgreen"))
+
+
+
+mat <- vae_lr_dt
+colnames(mat) <- paste0("LD", 1:ncol(mat))
+
+stopifnot(rownames(mat) %in% names(samp2pam50))
+pam50 <- samp2pam50[rownames(mat)]
+    
+outFile <- file.path(outFolder, paste0("complex_heatmap_LDs.", plotType))
+do.call(plotType, list(outFile, height=myHeight*1.2, width=myWidth*1.6))
+df = data.frame(PAM50=pam50)
+ha = HeatmapAnnotation(df = df, col=annotation_colors)
+Heatmap(t(mat), name = "Prot. LS", top_annotation = ha, row_title = "LDs", row_labels = rep("", nrow(t(mat))))
+foo <- dev.off()
+cat(paste0("... written: ", outFile, "\n"))
+
+
+                  
+
+
+
+stop("--ok\n")
+
+mat = cbind(rbind(matrix(rnorm(16, -1), 4), matrix(rnorm(32, 1), 8)),
+            rbind(matrix(rnorm(24, 1), 4), matrix(rnorm(48, -1), 8)))
+
+rownames(mat) = paste0("R", 1:12)
+colnames(mat) = paste0("C", 1:10)
+
+df = data.frame(type = c(rep("a", 5), rep("b", 5)))
+value = rnorm(10)
+ha = HeatmapAnnotation(df = df)
+Heatmap(mat, name = "foo", top_annotation = ha)
+
+########################################################
+library(ComplexHeatmap)
+library(circlize)
+
+expr = readRDS(system.file(package = "ComplexHeatmap", "extdata", "gene_expression.rds"))
+mat = as.matrix(expr[, grep("cell", colnames(expr))])
+base_mean = rowMeans(mat)
+mat_scaled = t(apply(mat, 1, scale))
+
+type = gsub("s\\d+_", "", colnames(mat))
+ha = HeatmapAnnotation(type = type, annotation_name_side = "left")
+
+ht_list = Heatmap(mat_scaled, name = "expression", row_km = 5, 
+                  col = colorRamp2(c(-2, 0, 2), c("green", "white", "red")),
+                  top_annotation = ha, 
+                  show_column_names = FALSE, row_title = NULL, show_row_dend = FALSE) +
+  Heatmap(base_mean, name = "base mean", 
+          top_annotation = HeatmapAnnotation(summary = anno_summary(gp = gpar(fill = 2:6), 
+                                                                    height = unit(2, "cm"))),
+          width = unit(15, "mm")) +
+  rowAnnotation(length = anno_points(expr$length, pch = 16, size = unit(1, "mm"), 
+                                     axis_param = list(at = c(0, 2e5, 4e5, 6e5), 
+                                                       labels = c("0kb", "200kb", "400kb", "600kb")),
+                                     width = unit(2, "cm"))) +
+  Heatmap(expr$type, name = "gene type", 
+          top_annotation = HeatmapAnnotation(summary = anno_summary(height = unit(2, "cm"))),
+          width = unit(15, "mm"))
+
+ht_list = rowAnnotation(block = anno_block(gp = gpar(fill = 2:6, col = NA)), 
+                        width = unit(2, "mm")) + ht_list
+
+draw(ht_list)

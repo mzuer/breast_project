@@ -1,18 +1,18 @@
 
-# Rscript viper_cond1cond2_networks_TCGA.R
-cond1 <- "LumB"
-cond2 <- "LumA"
-annotCol <- "BRCA_Subtype_PAM50"
+# Rscript viper_cond1cond2_networks_proteo_Johansson.R
 
+
+cond1 <- "HER2"
+cond2 <- "LumA"
+annotCol <- "PAM50.subtype"
 
 cond1 <- "LumBHer2"
 cond2 <- "LumA"
-annotCol <- "BRCA_Subtype_PAM50_merged"
+annotCol <- "PAM50.subtype_merged"
 
-cond1 <- "Her2"
+cond1 <- "LumB"
 cond2 <- "LumA"
-annotCol <- "BRCA_Subtype_PAM50"
-
+annotCol <- "PAM50.subtype"
 
 
 # how many rows to put in the summary tables
@@ -22,12 +22,14 @@ plotType <- "png"
 myWidth <- 400
 myHeight <- 400
 
+
 library(TCGAbiolinks)
 library(viper)
 library('org.Hs.eg.db')
 library(gplots)
 
-outFolder <- file.path("VIPER_COND1COND2_NETWORKS_TCGA", paste0("test_", cond1, "_vs_ref_", cond2))
+
+outFolder <- file.path("VIPER_COND1COND2_NETWORKS_PROTEO_JOHANSSON", paste0("test_", cond1, "_vs_ref_", cond2))
 dir.create(outFolder, recursive=TRUE)
 
 computeNullModel <- T
@@ -37,46 +39,66 @@ runViper <- T
 library(aracne.networks)
 data("regulonbrca")
 
+### not enough samples to run ARACne ??!
+
+####################################
+### retrieve proteo data
+####################################
+
+proteo_dt <- read.delim("data/johansson_data_relative_ratios_to_pool.csv", sep=",")
+stopifnot(!duplicated(proteo_dt$gene_symbol))
+rownames(proteo_dt) <- proteo_dt$gene_symbol
+proteo_dt$gene_symbol <- proteo_dt$gene_symbol <- proteo_dt$ensembl_id <- NULL 
+
 ####################################
 ### first retrieve PAM50 annotation data
 ####################################
-cancer <- "BRCA"
-PlatformCancer <- "IlluminaHiSeq_RNASeqV2"
-dataType <- "rsem.genes.results"
-pathCancer <- "TCGAData/miRNA"
-# get subtype information
-dataSubt <- TCGAquery_subtype(tumor = cancer)
-dataSubt <- as.data.frame(dataSubt)
-dataSubt$BRCA_Subtype_PAM50_merged <- dataSubt$BRCA_Subtype_PAM50
-dataSubt$BRCA_Subtype_PAM50_merged[dataSubt$BRCA_Subtype_PAM50_merged == "LumB" |
-                                     dataSubt$BRCA_Subtype_PAM50_merged == "Her2"] <- "LumBHer2"
 
 
-stopifnot(!duplicated(dataSubt$patient))
-samp_annot <- setNames(as.character(dataSubt[,paste0(annotCol)]), as.character(dataSubt$patient))
-samp_annot_all <- setNames(as.character(dataSubt[,paste0("BRCA_Subtype_PAM50")]), as.character(dataSubt$patient))
+annot_dt <- read.delim("data/johansson_tumor_annot.csv", sep=",")
+
+annot_dt$PAM50.subtype_merged <- annot_dt$PAM50.subtype
+annot_dt$PAM50.subtype_merged[annot_dt$PAM50.subtype_merged == "LumB" |
+                                annot_dt$PAM50.subtype_merged == "HER2"] <- "LumBHer2"
+
+
+samp_annot <- setNames(as.character(annot_dt[,paste0(annotCol)]), as.character(annot_dt$Tumor.ID))
+samp_annot_all <- setNames(as.character(annot_dt[,paste0("PAM50.subtype")]), as.character(annot_dt$Tumor.ID))
+stopifnot(!duplicated(annot_dt$Tumor.ID))
+
+stopifnot(names(samp_annot) %in% colnames(proteo_dt))
 
 ####################################
 ### load ARACne data
 ####################################
 
-regulfile <- file.path("brca_tcga_rnaseq851_signalomeregulon.rda")
-regul_ <- load(regulfile)
-# this loads expression data: dset + regulon: regul
-regul
-# regulon object, 2020 regulators, 18135 targets, 509011 interactions
-brca_regul <- regul
+# regulfile <- file.path("brca_tcga_rnaseq851_signalomeregulon.rda")
+# regul_ <- load(regulfile)
+# # this loads expression data: dset + regulon: regul
+# regul
 
-expr_cols <- colnames(dset)
-expr_cols_short <- substr(expr_cols, 1, 12)
+# expr_cols <- colnames(dset)
+# expr_cols_short <- substr(expr_cols, 1, 12)
 # stopifnot(!duplicated(expr_cols_short)) # not true
 
-samp_cols<- substr(expr_cols, 14, 15)
-norm_samps <- paste0(11:30)
+# samp_cols<- substr(expr_cols, 14, 15)
+# norm_samps <- paste0(11:30)
+# all_entrez <- rownames(dset)
 
+# regulon object, 2020 regulators, 18135 targets, 509011 interactions
+## the one loaded from aracne.networks has 
+# Object of class regulon with 6054 regulators, 19359 targets and 331919 interactions
+# 
+brca_regul <- regulonbrca
+brca_regul_tfs <- names(brca_regul)
+brca_regul_targets <- unlist(lapply(brca_regul, function(x) names(x[["tfmode"]])),use.names = FALSE)
+all_entrez <- unique(c(brca_regul_tfs, brca_regul_targets))
 
-all_entrez <- rownames(dset)
+# for compatibility with previous code
+dset <- data.frame(x=1:length(all_entrez),y="", stringsAsFactors = FALSE)
+rownames(dset) <- all_entrez
 
+# 
 # all_symbs1 <- mapIds(org.Hs.eg.db, all_entrez, 'SYMBOL', 'ENTREZID')
 # all_symbs2 <- getSYMBOL(all_entrez, data='org.Hs.eg')
 # return same results
@@ -109,33 +131,8 @@ brca_regul <- lapply(brca_regul_gs, function(x) {
 ### prepare expression data
 ####################################
 
-expr_dt <- dset[, !samp_cols %in% norm_samps]
-stopifnot(!is.na(expr_dt))
 
-# remove samples with dup vials -> keep most var
-tmp_Dt <- as.data.frame(t(expr_dt))
-tmp_Dt$samp_short <- substr(rownames(tmp_Dt), 1, 12)
-
-dt1 <- tmp_Dt[!tmp_Dt$samp_short %in% tmp_Dt$samp_short[duplicated(tmp_Dt$samp_short)],]
-dup_dt <- tmp_Dt[tmp_Dt$samp_short %in% tmp_Dt$samp_short[duplicated(tmp_Dt$samp_short)],]
-
-x=dup_dt[dup_dt$samp_short==dup_dt$samp_short[1],]
-
-dt2 <- do.call(rbind, by(dup_dt, dup_dt$samp_short, function(x) {
-  xtmp <- x
-  xtmp$samp_short <- NULL
-  outtmp <- xtmp[which.max(apply(xtmp, 1, var)),, drop=FALSE]
-  stopifnot(nrow(outtmp) == 1)
-  outtmp <- as.data.frame(outtmp)
-  outtmp$samp_short <- unique(x$samp_short)
-  outtmp
-}))
-stopifnot(colnames(dt1) == colnames(dt2))
-expr_dt_nodup <- rbind(dt1,dt2)
-stopifnot(!duplicated(expr_dt_nodup$samp_short))
-rownames(expr_dt_nodup) <- expr_dt_nodup$samp_short
-expr_dt_nodup$samp_short <- NULL
-exprDT <- t(expr_dt_nodup)
+exprDT <- proteo_dt
 
 stopifnot(any(colnames(exprDT) %in% names(samp_annot)))
 dim(exprDT)
@@ -158,6 +155,9 @@ stopifnot(length(cond2_samps) > 0)
 length(cond2_samps)
 # 167
 
+x <- as.matrix(exprDT)
+stopifnot(dim(x) == dim(exprDT))
+exprDT <- x
 cond1_dt <- exprDT[, colnames(exprDT) %in% cond1_samps]
 stopifnot(dim(cond1_dt) > 0)
 
@@ -233,13 +233,21 @@ if(runMSviper) {
 }
 
 
-#### result summary and vizualization
+#### result summary and vizulization
 # summary of the results
-mrs_summary <- summary(cond12_mrs)
-# mrs_summary <- mrs_summary[order(mrs_summary$FDR, mrs_summary$p.value, decreasing=FALSE),]
+mrs_summary <- mrs_summary[order(mrs_summary$FDR, mrs_summary$p.value, decreasing=FALSE),]
 # mrs_summary$Regulon_symb <- all_symbs[paste0(mrs_summary$Regulon)]
   
+# add the targets
+stopifnot(mrs_summary$Regulon %in% names(brca_regul))
+mrs_tgts <- sapply(mrs_summary$Regulon, function(x) paste0(names(brca_regul[[x]][["tfmode"]]), collapse=","))
+names(mrs_tgts) <- NULL
 outFile <- file.path(outFolder, paste0(cond1, "_vs_", cond2, "_mrs_summary.txt"))
+write.table(mrs_summary, file = outFile, col.names=T, row.names=F, sep="\t", quote=F)
+cat(paste0("... written: ", outFile, "\n"))
+
+mrs_summary$targets <- mrs_tgts
+outFile <- file.path(outFolder, paste0(cond1, "_vs_", cond2, "_mrs_summary_withTgts.txt"))
 write.table(mrs_summary, file = outFile, col.names=T, row.names=F, sep="\t", quote=F)
 cat(paste0("... written: ", outFile, "\n"))
 
@@ -250,6 +258,8 @@ plot(cond12_mrs, cex = .7)
 foo <- dev.off()
 cat(paste0("... written: ", outFile, "\n"))
 
+mrs_summary_all <- summary(cond12_mrs,length(cond12_mrs$regulon))
+mrs_summary_all <- mrs_summary_all[order(mrs_summary_all$FDR, mrs_summary_all$p.value, decreasing=FALSE),]
 
 #### leading edge analysis
 # msVIPER infers the relative activity of a regulatory gene based on the enrichment of its most closely-
@@ -260,9 +270,6 @@ cat(paste0("... written: ", outFile, "\n"))
 ledge_cond12_mrs <- ledge(cond12_mrs)
 summary(ledge_cond12_mrs)
 
-outFile <- file.path(outFolder, "ledge_cond12_mrs.Rdata")
-save(ledge_cond12_mrs, file=outFile)
-cat(paste0("... written: ", outFile, "\n"))
 ledge_summary <- summary(ledge_cond12_mrs, nSum)
 # ledge_summary <- ledge_summary[order(ledge_summary$FDR, ledge_summary$p.value, decreasing=FALSE),]
 # ledge_summary$Regulon_symb <- all_symbs[paste0(ledge_summary$Regulon)]
@@ -272,6 +279,58 @@ write.table(ledge_summary, file = outFile, col.names=T, row.names=F, sep="\t", q
 cat(paste0("... written: ", outFile, "\n"))
 
 
+########################################## ORA
+
+go_fdr_thresh <- 0.1
+go_mrs_dt <- mrs_summary_all[mrs_summary_all$FDR <= go_fdr_thresh,]
+
+cat(paste0("... doing GO for FDR <= ", go_fdr_thresh, " modules :\n"))
+cat(paste0("... ", nrow(go_mrs_dt), "/", nrow(mrs_summary_all), "\n"))
+
+gmt_fname <- system.file("extdata", "pathways.gmt", package = "CEMiTool")
+gmt_in <- read_gmt(gmt_fname)
+message("Using all genes in GMT file as universe.")
+allgenes <- unique(gmt_in[, "gene"])
+
+
+### mz added: do enrichment for the ms
+# getMethod("mod_ora", "CEMiTool")
+# CEMiTool:::ora)
+
+mods <- lapply(go_mrs_dt$Regulon, function(x) names(brca_regul[[x]][["tfmode"]]))
+names(mods) <- go_mrs_dt$Regulon
+
+res_list <- lapply(names(mods), CEMiTool:::ora, gmt_in, allgenes, mods)
+
+if (all(lapply(res_list, nrow) == 0)) {
+  warning("Enrichment is NULL. Either your gmt file is inadequate or your modules really aren't enriched for any of the pathways in the gmt file.")
+  # return(cem)
+  ora_res <- NULL
+} else {
+  names(res_list) <- names(mods)
+  ora_res <- lapply(names(res_list), function(x) {
+    if (nrow(res_list[[x]]) > 0) {
+      as.data.frame(cbind(x, res_list[[x]]))
+    }
+  })
+  ora_res_dt <- do.call(rbind, ora_res)
+  names(ora_res_dt)[names(ora_res_dt) == "x"] <- "Module"
+  rownames(ora_res_dt) <- NULL
+}
+go_signifThresh <- 0.05
+ora_res_dt_signif <- ora_res_dt[ora_res_dt$p.adjust <= go_signifThresh,]
+
+cat(paste0("... keeping GO with adj. pval <= ", go_signifThresh, "\n"))
+cat(paste0("... ", nrow(ora_res_dt_signif), "/", nrow(ora_res_dt), "\n"))
+
+ora_res_dt_maxSignif <- do.call(rbind, by(ora_res_dt,ora_res_dt$Module, function(x) x[which.min(x$p.adjust),]))
+grep("prolif", ora_res_dt_signif$Description)
+
+
+
+go_signif_countdt <- data.frame(table(ora_res_dt_signif$ID))
+go_signif_countdt <- go_signif_countdt[order(go_signif_countdt$Freq, decreasing = TRUE),]
+  
 ####################################
 ### Beyond msVIPER
 ####################################
@@ -396,7 +455,6 @@ if(runViper){
   cond12_vpres <- get(load(outFile))
 }
 
-
 #### sample clustering
 # because VIPER expresses activity for all the regulatory proteins in the same scale – normalized enrich-
 #   ment score –, euclidean distance is an appropriate measure of similarity between samples
@@ -477,6 +535,7 @@ heatmap.2(t(as.matrix(cond12_dd)),
 
 foo <- dev.off()
 cat(paste0("... written: ", outFile, "\n"))
+
 
 
 stop("---ok \n")
