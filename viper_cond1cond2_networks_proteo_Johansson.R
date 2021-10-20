@@ -21,7 +21,7 @@ nSum <- 25
 plotType <- "png"
 myWidth <- 400
 myHeight <- 400
-
+myWidthGG <- myHeightGG <- 7
 
 library(TCGAbiolinks)
 library(viper)
@@ -340,6 +340,24 @@ mrs_summary_all <- mrs_summary_all[order(mrs_summary_all$FDR, mrs_summary_all$p.
 outFile <- file.path(outFolder, "mrs_summary_all.Rdata")
 save(mrs_summary_all, file=outFile)
 cat(paste0("... written: ", outFile, "\n"))
+
+#### 
+nToPlot <- 10
+for(i in 1:nToPlot) {
+  i_reg <- mrs_summary_all$Regulon[i]
+  stopifnot(i_reg %in% names(brca_regul))
+  moi_genes <- names(brca_regul[[paste0(i_reg)]][["tfmode"]])
+  stopifnot(moi_genes %in% rownames(cond12_dt))
+  p <- plot_mymodule(module_genes=moi_genes, prot_dt=cond12_dt,
+                cond1_s=cond1_samps, cond2_s=cond2_samps,
+                meanExprThresh=1, absLog2fcThresh=0.5 
+  )
+  outFile <- file.path(outFolder, paste0(i_reg, "_network_fc_corr.", plotType))
+  ggsave(p, filename=outFile, height=myHeightGG, width=myWidthGG)
+  cat(paste0("... written: ", outFile, "\n"))
+  
+  
+}
 
 #### leading edge analysis
 # msVIPER infers the relative activity of a regulatory gene based on the enrichment of its most closely-

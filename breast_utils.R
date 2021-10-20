@@ -1,22 +1,3 @@
-
-## to not have too many genes to plot, add threshold of fc
-
-module_genes=module_genes
-prot_dt=t12_dt
-meanExprThresh=0.01
-absLog2fcThresh=0.5
-cond1_s=cond1_samps
-cond2_s=cond2_samps
-
-
-moi <- "M5"
-moi_genes <- cem_cond12@module$genes[cem_cond12@module$modules== moi]
-
-plot_mymodule(module_genes=moi_genes, prot_dt=cond12_dt,
-              cond1_s=cond1_samps, cond2_s=cond2_samps,
-              meanExprThresh=1, absLog2fcThresh=0.5 
-              ) 
-
 plot_mymodule <- function(module_genes, prot_dt, cond1_s, cond2_s, 
                           size_min_nodes = 10,
                           size_max_nodes = 20,
@@ -105,7 +86,7 @@ plot_mymodule <- function(module_genes, prot_dt, cond1_s, cond2_s,
   
   plotcord$fc_size_nodes <- (size_max_nodes-size_min_nodes) * (abs(plotcord$fc) - min(abs(plotcord$fc)))/
     (max(abs(plotcord$fc))-min(abs(plotcord$fc))) + size_min_nodes
-
+  
   plotcord$fc_size_labs <- (size_max_labs-size_min_labs) * (abs(plotcord$fc) - min(abs(plotcord$fc)))/
     (max(abs(plotcord$fc))-min(abs(plotcord$fc))) + size_min_labs
   
@@ -141,8 +122,5 @@ plot_mymodule <- function(module_genes, prot_dt, cond1_s, cond2_s,
   
   return(pl)
 }
-  
-  
-  
-  
-  
+
+

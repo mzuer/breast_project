@@ -9,11 +9,10 @@ cond1 <- "LumBHer2"
 cond2 <- "LumA"
 annotCol <- "PAM50.subtype_merged"
 
-
 plotType <- "png"
 myWidth <- 400
 myHeight <- 400
-
+myWidthGG <- myHeightGG <- 7
 
 cond1 <- "LumB"
 cond2 <- "LumA"
@@ -25,15 +24,21 @@ dir.create(outFolder, recursive=TRUE)
 # gmt_file <- system.file("extdata", "pathways.gmt", package = "CEMiTool")
 gmt_file <- "c5.go.bp.v7.4.symbols.gmt"
 
+nTop_connect <- 5
+
+myHeightGG <- myWidthGG <- 7
+
 library("CEMiTool")
-
-
 library(aracne.networks)
 data("regulonbrca")
 
+source("breast_utils.R")
+
 # look at the size of aracne regulon
 
-min_mod_size <- min(unlist(lapply(brca_regul, function(x)length(x[["tfmode"]]))))
+min_mod_size <- min(unlist(lapply(regulonbrca, function(x)length(x[["tfmode"]]))))
+# 2 -> 47 modules
+min_mod_size <- 10
 
 ####################################
 ### retrieve proteo data
@@ -139,9 +144,9 @@ cem_cond12 <- cemitool(as.data.frame(cond12_dt), cemi_annot_dt)
   
 # inspect modules
 
-nmodules(cem_cond12)
+# nmodules(cem_cond12)
 # 6
-head(module_genes(cem_cond12))
+# head(module_genes(cem_cond12))
 # genes        modules
 # 1    CPB1             M4
 # 2   IGSF1 Not.Correlated
@@ -150,12 +155,25 @@ head(module_genes(cem_cond12))
 # 5   SMCO3             M3
 # 6    STC2             M3
 
+cat(paste0("... # modules, default parameters:\t", nmodules(cem_cond12), "\n"))
+
 # Genes that are allocated to Not.Correlated are genes that are not clustered into any module.
 
 # If you wish to adjust the module definition parameters of your CEMiTool object, use find_modules(cem).
-find_modules(cem_cond12, min_ngen = 20)
+cem_cond12 <- find_modules(cem_cond12, min_ngen = min_mod_size)
+cat(paste0("... # modules (min_ngen=", min_mod_size, "):\t", nmodules(cem_cond12), "\n"))
 
-nTop_connect <- 5
+
+modules_dt <- module_genes(cem_cond12)
+modulesFreq_dt <- as.data.frame(table(modules_dt$modules))
+colnames(modulesFreq_dt) <- c("module", "nbr_genes")
+
+outFile <- file.path(outFolder, paste0("nbrGenes_byModules.", plotType))
+do.call(plotType, list(outFile, height=myHeight, width=myWidth))
+plot(density(modulesFreq_dt$nbr_genes))
+mtext(side=3, text=paste0("# modules = ", nrow(modulesFreq_dt)))
+foo <- dev.off()
+cat(paste0("... written: ", outFile, "\n"))
 
 # get_hubs function to identnTop_connectify the top n genes with the highest connectivity in each module:
 cond12_hubs <- get_hubs(cem_cond12,nTop_connect) 
@@ -183,7 +201,11 @@ generate_report(cem_cond12)
 # generate heatmap of gene set enrichment analysis
 cem_cond12 <- mod_gsea(cem_cond12)
 cem_cond12 <- plot_gsea(cem_cond12)
-show_plot(cem_cond12, "gsea")
+p <- show_plot(cem_cond12, "gsea")
+outFile <- file.path(outFolder, paste0(cond1, "_", cond2,"_gsea_enrichment.svg"))
+ggsave(p[[1]], filename = outFile, height=myHeightGG*1.3, width=myWidthGG)
+cat(paste0("... written: ", outFile, "\n"))
+
 
 ####################################
 #### Expression patterns in modules
@@ -194,7 +216,18 @@ show_plot(cem_cond12, "gsea")
 # plot gene expression within each module
 cem_cond12 <- plot_profile(cem_cond12)
 prof_plots <- show_plot(cem_cond12, "profile")
-prof_plots[1]
+
+outFile <- file.path(outFolder, paste0(cond1, "_", cond2,"_gsea_enrichment.svg"))
+ggsave(p[[1]], filename = outFile, height=myHeightGG*1.3, width=myWidthGG)
+cat(paste0("... written: ", outFile, "\n"))
+
+mTopPlot <- 3
+tmpgsea_dt <-cem_cond12@enrichment[["padj"]]
+tmpgsea_dt <- tmpgsea_dt[order(tmpgsea_dt[,cond1], decreasing = FALSE),]
+top3m_gseaPval_cond1 <- tmpgsea_dt$pathway[1:mTopPlot]
+# tmpgsea_dt <- tmpgsea_dt[order(tmpgsea_dt[,cond2], decreasing = FALSE),]
+# top3m_gseaPval_cond2 <- tmpgsea_dt$pathway[1:mTopPlot]
+
 
 
 ####################################
@@ -222,7 +255,48 @@ cem_cond12 <- mod_ora(cem_cond12, gmt_in)
 # plot ora results
 cem_cond12 <- plot_ora(cem_cond12)
 ora_plots <- show_plot(cem_cond12, "ora")
-ora_plots[1]
+
+for(i in 1:length(ora_plots)) {
+  outFile <- file.path(outFolder, paste0(names(ora_plots)[i], "_GO_ora.", plotType))
+  ggsave(ora_plots[[i]][["pl"]], filename = outFile, height=myHeightGG, width=myWidth)
+  cat(paste0("... written: ", outFile, "\n"))
+  
+  ### if some signif GO -> to plot
+  if(ora_plots[[i]][["numsig"]] > 0) {
+    
+    
+    
+    mg_dt <- module_genes(cem_cond12)
+    moi <- names(ora_plots)[i]
+    g_moi <- mg_dt$genes[mg_dt$modules == moi]
+    
+    p <- plot_mymodule(module_genes=g_moi, prot_dt=cond12_dt,
+                  cond1_s=cond1_samps, cond2_s=cond2_samps,
+                  meanExprThresh=1, absLog2fcThresh=0.5)
+    
+    outFile <- file.path(outFolder, paste0(moi, "_network_fc_corr.", plotType))
+    ggsave(p, filename=outFile, height=myHeightGG, width=myWidthGG)
+    cat(paste0("... written: ", outFile, "\n"))
+    
+  }
+  
+  
+}
+# create report as html document
+generate_report(cem_cond12, directory=file.path(outFolder, paste0("Report_", cond1, "_", cond2)))
+
+# write analysis results into files
+write_files(cem_cond12, directory=file.path(outFolder, paste0("Tables_", cond1, "_", cond2)))
+
+# save all plots
+save_plots(cem_cond12, "all", directory=file.path(outFolder, paste0("Plots_", cond1, "_", cond2)))
+
+
+
+
+stop("---ok\n")
+
+
 
 ## $M1
 ## $M1$pl
