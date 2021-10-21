@@ -37,6 +37,8 @@ DE_topTable_mpd <- get(load(inFile))
 # symb2ppi <- setNames(DE_topTable_mpd$STRING_id, DE_topTable_mpd$gene)
 # cannot do that, can be duplicated because mulitple PPI for a given symbol
 
+stopifnot(!duplicated(DE_topTable_mpd$STRING_id))
+
 ### initialization
 # WARNING: You didn't specify a species. Hence we will set 9606 (Homo Sapiens) as your species.
 # WARNING: Score threshold is not specified. We will be using medium stringency cut-off of 400.
@@ -47,6 +49,19 @@ string_db <- STRINGdb$new( species=9606)
 
 nTop <- 10
 
+plotType <- "png"
+myWidth <- 1000
+myHeight <- 1000
+
+
+# post payload information to the STRING server
+DE_topTable_mpd <- string_db$add_diff_exp_color( DE_topTable_mpd,
+                                                        logFcColStr="logFC" )    
+
+payload_id <- string_db$post_payload( DE_topTable_mpd$STRING_id, 
+                                      colors=DE_topTable_mpd$color )
+
+
 for(i in 1:nTop) {
   i_reg <- mrs_summary_all$Regulon[i]
   i_targets <- names(brca_regul[[paste0(i_reg)]][["tfmode"]])
@@ -56,15 +71,16 @@ for(i in 1:nTop) {
   
   mod_dt <- DE_topTable_mpd[DE_topTable_mpd$gene %in% mod_genes,c("gene", "STRING_id")]
   
+  string_db$get_ppi_enrichment(mod_dt$STRING_id)
+  
   mod_interactions_dt <- string_db$get_interactions( mod_dt$STRING_id )
   
-  outFile <- file.path(outFolder, paste0("ppi_plot_cluster", i, ".", plotType))
+  outFile <- file.path(outFolder, paste0("ppi_plot_cluster", i, "_withColFC.", plotType))
   do.call(plotType, list(outFile, height=myHeight, width=myWidth))
-  string_db$plot_network(mod_dt$STRING_id)
+  string_db$plot_network(mod_dt$STRING_id, payload_id=payload_id )
+  mtext(side=3, paste0(i_reg, " regulon (viper top ", i, ")"))
   foo <- dev.off()
   cat(paste0("... written: ", outFile, "\n"))  
-  
-  
   
 }
 

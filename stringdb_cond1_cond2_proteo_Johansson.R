@@ -136,10 +136,16 @@ string_db <- STRINGdb$new( species=9606)
 DE_topTable <- as.data.frame(DE_topTable)
 DE_topTable$gene <- rownames(DE_topTable)
 
+outFile <- file.path(outFolder, "DE_topTable.Rdata")
+save(DE_topTable, file=outFile)
+cat(paste0("... written: ", outFile, "\n"))
+
 ###################################################
 DE_topTable_mpd <- string_db$map( DE_topTable, "gene", removeUnmappedRows = TRUE )
 # this adds a column with STRING_id
 # 0% unmapped
+
+sdb_genes <- string_db$mp(DE_topTable_mpd$STRING_id)
 
 outFile <- file.path(outFolder, "DE_topTable_mpd.Rdata")
 save(DE_topTable_mpd, file=outFile)

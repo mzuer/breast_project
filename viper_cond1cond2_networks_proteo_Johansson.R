@@ -23,6 +23,9 @@ myWidth <- 400
 myHeight <- 400
 myWidthGG <- myHeightGG <- 7
 
+pvalThresh_plot <- 0.05
+fcThresh_plot <- 0.1
+
 library(TCGAbiolinks)
 library(viper)
 library('org.Hs.eg.db')
@@ -38,7 +41,7 @@ dir.create(outFolder, recursive=TRUE)
 
 computeNullModel <- F
 runMSviper <- F
-runViper <- T
+runViper <- F
 
 library(aracne.networks)
 data("regulonbrca")
@@ -245,7 +248,7 @@ brca_regul <- brca_regul_filt3
 outFile <- file.path(outFolder, "mrs_brca_regul.Rdata")
 save(brca_regul, file=outFile)
 cat(paste0("... written: ", outFile, "\n"))
-stop("---ok\n")
+# stop("---ok\n")
 ####################################
 ### Master Regulator Analysis performed by msVIPER
 ####################################
@@ -347,27 +350,34 @@ outFile <- file.path(outFolder, "mrs_summary_all.Rdata")
 save(mrs_summary_all, file=outFile)
 cat(paste0("... written: ", outFile, "\n"))
 
+de_topTable_dt <- get(load("STRINGDB_COND1_COND2_PROTEO_JOHANSSON/test_LumB_vs_ref_LumA/DE_topTable.Rdata"))
+
 #### 
 nToPlot <- 10
 for(i in 1:nToPlot) {
   i_reg <- mrs_summary_all$Regulon[i]
   stopifnot(i_reg %in% names(brca_regul))
   moi_genes <- names(brca_regul[[paste0(i_reg)]][["tfmode"]])
+  moi_genes <- c(i_reg, moi_genes)
+  stopifnot(moi_genes %in% de_topTable_dt$gene)
   if(length(moi_genes) >1) {
     stopifnot(moi_genes %in% rownames(cond12_dt))
-    p <- plot_mymodule(module_genes=moi_genes, prot_dt=cond12_dt,
+    # p <- plot_mymodule(module_genes=c(moi_genes), prot_dt=cond12_dt,
+    #                    cond1_s=cond1_samps, cond2_s=cond2_samps,
+    #                    meanExprThresh=1, absLog2fcThresh=0.5 )
+    # use logFC and threshold from the DE data
+    p <- plot_mymodule_v2(module_genes=c(moi_genes), 
+                          prot_dt=cond12_dt, de_dt=de_topTable_dt,
                        cond1_s=cond1_samps, cond2_s=cond2_samps,
-                       meanExprThresh=1, absLog2fcThresh=0.5 
-    )
+                       pvalThresh=pvalThresh_plot, absLogFCThresh=fcThresh_plot ) + 
+    ggtitle(paste0(i_reg, " reg."), subtitle=paste0(length(moi_genes),
+                                                    " tgts (before pval<=", pvalThresh_plot, " & absLogFC>=", fcThresh_plot, ")"))
   }
   if(!is.na(p)) {
     outFile <- file.path(outFolder, paste0(i_reg, "_network_fc_corr.", plotType))
     ggsave(p, filename=outFile, height=myHeightGG, width=myWidthGG)
     cat(paste0("... written: ", outFile, "\n"))
-    
   }
-  
-  
 }
 
 #### leading edge analysis
@@ -405,6 +415,8 @@ allgenes <- unique(gmt_in[, "gene"])
 # getMethod("mod_ora", "CEMiTool")
 # CEMiTool:::ora)
 
+cat(paste0("... start computing ORA\n"))
+
 mods <- lapply(go_mrs_dt$Regulon, function(x) names(brca_regul[[x]][["tfmode"]]))
 names(mods) <- go_mrs_dt$Regulon
 
@@ -428,13 +440,15 @@ if (all(lapply(res_list, nrow) == 0)) {
 go_signifThresh <- 0.05
 ora_res_dt_signif <- ora_res_dt[ora_res_dt$p.adjust <= go_signifThresh,]
 
+outFile <- file.path(outFolder, "ora_res_dt_signif.Rdata")
+save(ora_res_dt_signif, file=outFile)
+cat(paste0("... written: ", outFile, "\n"))
+
 cat(paste0("... keeping GO with adj. pval <= ", go_signifThresh, "\n"))
 cat(paste0("... ", nrow(ora_res_dt_signif), "/", nrow(ora_res_dt), "\n"))
 
 ora_res_dt_maxSignif <- do.call(rbind, by(ora_res_dt,ora_res_dt$Module, function(x) x[which.min(x$p.adjust),]))
 grep("prolif", ora_res_dt_signif$Description)
-
-
 
 go_signif_countdt <- data.frame(table(ora_res_dt_signif$ID))
 go_signif_countdt <- go_signif_countdt[order(go_signif_countdt$Freq, decreasing = TRUE),]
@@ -444,7 +458,61 @@ outFile <- file.path(outFolder, paste0(cond1, "_vs_", cond2, "_goFreq_dt.txt"))
 write.table(go_signif_countdt, file = outFile, col.names=T, row.names=F, sep="\t", quote=F)
 cat(paste0("... written: ", outFile, "\n"))
 
+
+plot_ora_single(head(x, n = n), pv_cut = pv_cut, 
+                graph_color = mod_cols[unique(x$Module)], title = unique(x$Module), 
+                ...)
   
+> CEMiTool:::plot_ora_single
+function (es, ordr_by = "p.adjust", max_length = 50, pv_cut = 0.05, 
+          graph_color = "#4169E1", title = "Over Representation Analysis") 
+{
+  comsub <- function(x) {
+    d_x <- strsplit(x[c(1, length(x))], "")
+    der_com <- match(FALSE, do.call("==", d_x)) - 1
+    return(substr(x, 1, der_com + 1))
+  }
+  es[, "GeneSet"] <- es[, "ID"]
+  ovf_rows <- which(nchar(es[, "GeneSet"]) > max_length)
+  ovf_data <- es[ovf_rows, "GeneSet"]
+  test <- strtrim(ovf_data, max_length)
+  dupes <- duplicated(test) | duplicated(test, fromLast = TRUE)
+  if (sum(dupes) > 0) {
+    test[dupes] <- ovf_data[dupes]
+    test[dupes] <- comsub(test[dupes])
+    max_length <- max(nchar(test))
+  }
+  es[ovf_rows, "GeneSet"] <- paste0(strtrim(test, max_length), 
+                                    "...")
+  es[, "GeneSet"] <- stringr::str_wrap(es[, "GeneSet"], width = 20)
+  lvls <- es[order(es[, ordr_by], decreasing = TRUE), "GeneSet"]
+  es[, "GeneSet"] <- factor(es[, "GeneSet"], levels = lvls)
+  es[, "alpha"] <- 1
+  es[es[, ordr_by] > pv_cut, "alpha"] <- 0
+  es[es[, ordr_by] > 0.8, ordr_by] <- 0.8
+  my_squish <- function(...) {
+    return(scales::squish(..., only.finite = FALSE))
+  }
+  y_axis <- paste("-log10(", ordr_by, ")")
+  pl <- ggplot(es, aes_string(x = "GeneSet", y = y_axis, alpha = "alpha", 
+                              fill = y_axis)) + geom_bar(stat = "identity") + theme(axis.text = element_text(size = 8), 
+                                                                                    legend.title = element_blank()) + coord_flip() + scale_alpha(range = c(0.4, 
+                                                                                                                                                           1), guide = "none") + labs(y = "-log10(adjusted p-value)", 
+                                                                                                                                                                                      title = title, x = "") + geom_hline(yintercept = -log10(pv_cut), 
+                                                                                                                                                                                                                          colour = "grey", linetype = "longdash") + scale_fill_gradient(low = "gray", 
+                                                                                                                                                                                                                                                                                        high = graph_color, limits = c(2, 5), oob = my_squish)
+  res <- list(pl = pl, numsig = sum(es[, ordr_by] < pv_cut, 
+                                    na.rm = TRUE))
+  return(res)
+}
+<bytecode: 0x55a3f7d4f458>
+  <enviro
+
+
+
+
+stop("---ok\n")
+
 ####################################
 ### Beyond msVIPER
 ####################################

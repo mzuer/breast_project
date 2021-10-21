@@ -39,7 +39,7 @@ source("breast_utils.R")
 
 min_mod_size <- min(unlist(lapply(regulonbrca, function(x)length(x[["tfmode"]]))))
 # 2 -> 47 modules
-min_mod_size <- 10
+# min_mod_size <- 10
 
 ####################################
 ### retrieve proteo data
