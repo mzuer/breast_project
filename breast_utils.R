@@ -1,3 +1,6 @@
+require(scales)
+require(ggrepel)
+
 plot_mymodule <- function(module_genes, prot_dt, cond1_s, cond2_s, 
                           size_min_nodes = 10,
                           size_max_nodes = 20,
@@ -31,6 +34,8 @@ plot_mymodule <- function(module_genes, prot_dt, cond1_s, cond2_s,
   module_genes <- module_genes[c12]
   stopifnot(length(module_genes) == sum(c12))
   
+  if(length(module_genes) < 2) return(NA)
+  
   module_dt <- as.data.frame(t(combn(module_genes, 2)))
   colnames(module_dt) <- c("gene1", "gene2")
   
@@ -58,7 +63,7 @@ plot_mymodule <- function(module_genes, prot_dt, cond1_s, cond2_s,
   }
   g2fc <- setNames(module_genes_dt$log2_fc, module_genes_dt$gene)
   
-  ig_obj <- graph_from_data_frame(module_dt, directed=FALSE)
+  ig_obj <- igraph::graph_from_data_frame(module_dt, directed=FALSE)
   net_obj <- intergraph::asNetwork(ig_obj)
   m <- network::as.matrix.network.adjacency(net_obj)
   plotcord <- data.frame(sna::gplot.layout.fruchtermanreingold(m,NULL))
@@ -91,7 +96,7 @@ plot_mymodule <- function(module_genes, prot_dt, cond1_s, cond2_s,
     (max(abs(plotcord$fc))-min(abs(plotcord$fc))) + size_min_labs
   
   pl <- ggplot(plotcord) + 
-    geom_segment(data = edges, aes_(x = ~X1, y = ~X2, xend = ~Y1, yend = ~Y2, color=~corr), 
+    geom_segment(data = edges, aes_(x = ~X1, y = ~X2, xend = ~Y1, yend = ~Y2, color=~corr), #### CHANGE HERE COLOR DEFINITION
                  size = 0.5, alpha = 0.5) + 
     geom_point(aes_(x = ~X1, y = ~X2,
                     # size = ~Degree, 

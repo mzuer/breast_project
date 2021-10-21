@@ -12,7 +12,6 @@ annotCol <- "PAM50.subtype_merged"
 plotType <- "png"
 myWidth <- 400
 myHeight <- 400
-myWidthGG <- myHeightGG <- 7
 
 cond1 <- "LumB"
 cond2 <- "LumA"
@@ -31,7 +30,9 @@ myHeightGG <- myWidthGG <- 7
 library("CEMiTool")
 library(aracne.networks)
 data("regulonbrca")
-
+library(ggplot2)
+library(igraph)
+library(foreach)
 source("breast_utils.R")
 
 # look at the size of aracne regulon
@@ -182,7 +183,7 @@ cond12_hubs <- get_hubs(cem_cond12,nTop_connect)
 # can be obtained using: 
 summary_stat <- mod_summary(cem_cond12)
 
-generate_report(cem_cond12)
+# generate_report(cem_cond12)
 
 ####################################
 ### Module enrichment
@@ -258,7 +259,7 @@ ora_plots <- show_plot(cem_cond12, "ora")
 
 for(i in 1:length(ora_plots)) {
   outFile <- file.path(outFolder, paste0(names(ora_plots)[i], "_GO_ora.", plotType))
-  ggsave(ora_plots[[i]][["pl"]], filename = outFile, height=myHeightGG, width=myWidth)
+  ggsave(ora_plots[[i]][["pl"]], filename = outFile, height=myHeightGG, width=myWidthGG)
   cat(paste0("... written: ", outFile, "\n"))
   
   ### if some signif GO -> to plot
@@ -270,26 +271,34 @@ for(i in 1:length(ora_plots)) {
     moi <- names(ora_plots)[i]
     g_moi <- mg_dt$genes[mg_dt$modules == moi]
     
-    p <- plot_mymodule(module_genes=g_moi, prot_dt=cond12_dt,
-                  cond1_s=cond1_samps, cond2_s=cond2_samps,
-                  meanExprThresh=1, absLog2fcThresh=0.5)
-    
-    outFile <- file.path(outFolder, paste0(moi, "_network_fc_corr.", plotType))
-    ggsave(p, filename=outFile, height=myHeightGG, width=myWidthGG)
-    cat(paste0("... written: ", outFile, "\n"))
+    if(length(g_moi) > 1) {
+      
+      p <- plot_mymodule(module_genes=g_moi, prot_dt=cond12_dt,
+                         cond1_s=cond1_samps, cond2_s=cond2_samps,
+                         meanExprThresh=1, absLog2fcThresh=0.5)
+      
+      # can be NA if after filtering less than 2 genes
+      if(!is.na(p)) {
+        outFile <- file.path(outFolder, paste0(moi, "_network_fc_corr.", plotType))
+        ggsave(p, filename=outFile, height=myHeightGG, width=myWidthGG)
+        cat(paste0("... written: ", outFile, "\n"))
+        
+      }
+      
+    }
     
   }
   
   
 }
 # create report as html document
-generate_report(cem_cond12, directory=file.path(outFolder, paste0("Report_", cond1, "_", cond2)))
+generate_report(cem_cond12, directory=file.path(outFolder, paste0("Report_", cond1, "_", cond2)), force = TRUE)
 
 # write analysis results into files
-write_files(cem_cond12, directory=file.path(outFolder, paste0("Tables_", cond1, "_", cond2)))
+write_files(cem_cond12, directory=file.path(outFolder, paste0("Tables_", cond1, "_", cond2)), force = TRUE)
 
 # save all plots
-save_plots(cem_cond12, "all", directory=file.path(outFolder, paste0("Plots_", cond1, "_", cond2)))
+save_plots(cem_cond12, "all", directory=file.path(outFolder, paste0("Plots_", cond1, "_", cond2)), force = TRUE)
 
 
 

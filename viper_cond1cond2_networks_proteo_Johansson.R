@@ -29,13 +29,15 @@ library('org.Hs.eg.db')
 library(gplots)
 library(ggplot2)
 library(foreach)
+library(igraph)
+source("breast_utils.R")
 library(CEMiTool)
 
 outFolder <- file.path("VIPER_COND1COND2_NETWORKS_PROTEO_JOHANSSON", paste0("test_", cond1, "_vs_ref_", cond2))
 dir.create(outFolder, recursive=TRUE)
 
-computeNullModel <- T
-runMSviper <- T
+computeNullModel <- F
+runMSviper <- F
 runViper <- T
 
 library(aracne.networks)
@@ -347,14 +349,19 @@ for(i in 1:nToPlot) {
   i_reg <- mrs_summary_all$Regulon[i]
   stopifnot(i_reg %in% names(brca_regul))
   moi_genes <- names(brca_regul[[paste0(i_reg)]][["tfmode"]])
-  stopifnot(moi_genes %in% rownames(cond12_dt))
-  p <- plot_mymodule(module_genes=moi_genes, prot_dt=cond12_dt,
-                cond1_s=cond1_samps, cond2_s=cond2_samps,
-                meanExprThresh=1, absLog2fcThresh=0.5 
-  )
-  outFile <- file.path(outFolder, paste0(i_reg, "_network_fc_corr.", plotType))
-  ggsave(p, filename=outFile, height=myHeightGG, width=myWidthGG)
-  cat(paste0("... written: ", outFile, "\n"))
+  if(length(moi_genes) >1) {
+    stopifnot(moi_genes %in% rownames(cond12_dt))
+    p <- plot_mymodule(module_genes=moi_genes, prot_dt=cond12_dt,
+                       cond1_s=cond1_samps, cond2_s=cond2_samps,
+                       meanExprThresh=1, absLog2fcThresh=0.5 
+    )
+  }
+  if(!is.na(p)) {
+    outFile <- file.path(outFolder, paste0(i_reg, "_network_fc_corr.", plotType))
+    ggsave(p, filename=outFile, height=myHeightGG, width=myWidthGG)
+    cat(paste0("... written: ", outFile, "\n"))
+    
+  }
   
   
 }
