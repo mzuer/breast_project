@@ -237,11 +237,15 @@ plot(x=all_tfms_dt$tfm,
      ylab="proteo corr.")
 mtext(side=3, text=paste0("proteo corr: ", cond1, "+", cond2, " data"))
 foo <- dev.off()
-
+cat(paste0("... written: ", outFile, "\n"))
 
 ### try with brca_regul3
 brca_regul <- brca_regul_filt3
 
+outFile <- file.path(outFolder, "mrs_brca_regul.Rdata")
+save(brca_regul, file=outFile)
+cat(paste0("... written: ", outFile, "\n"))
+stop("---ok\n")
 ####################################
 ### Master Regulator Analysis performed by msVIPER
 ####################################
