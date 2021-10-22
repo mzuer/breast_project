@@ -6,14 +6,19 @@ dir.create(outFolder, recursive = TRUE)
 plotType <- "png"
 myWidth <- myHeight <- 400
 
+cond1="LumB"
+cond2="LumA"
+
+
 ###################### CHECKOUT COEXPR IN TCGA DATA
 
 require(foreach)
-
+require(doMC)
+registerDoMC(4)
 
 prepTCGAdata <- FALSE
-computCorrTCGA <- TRUE
-computCorrProteo <- TRUE
+computCorrTCGA <- F
+computCorrProteo <- F
 
 ############################################## 
 
@@ -136,9 +141,19 @@ if(computCorrTCGA) {
   all_tfms_dt <- all_tfms_dt[all_tfms_dt$g1 %in% rownames(tcga_entrez_dt) & all_tfms_dt$g2 %in% rownames(tcga_entrez_dt),]
   nrow(all_tfms_dt)
   # 322597
-  cat(paste0("... start computing corr TCGA"))
+  cat(paste0("... start computing corr TCGA\n"))
   all_tfms_dt_tcga <- all_tfms_dt
+  
+  ### too many
+  outFile <- file.path(outFolder,"all_tfms_dt_proteo.Rdata" )
+  all_tfms_dt_proteo <- get(load(outFile))
+  # take as many as proteo
+  keep <- sample(x=1:nrow(all_tfms_dt_tcga), size = nrow(all_tfms_dt_proteo))
+  # keep <- sample(x=1:nrow(all_tfms_dt_tcga), size = 1000)
+  all_tfms_dt_tcga <- all_tfms_dt_tcga[keep,]
+  stopifnot(nrow(all_tfms_dt_tcga)==nrow(all_tfms_dt_proteo))
   all_tfms_dt_tcga$prot_corr <-foreach(i = 1:nrow(all_tfms_dt_tcga), .combine='c') %dopar% {
+    cat(paste0(i, "/", nrow(all_tfms_dt_tcga), "\n"))
     g1 <- all_tfms_dt_tcga$g1[i]
     g2 <- all_tfms_dt_tcga$g2[i]
     if(g1 %in% rownames(tcga_entrez_dt) & g2 %in% rownames(tcga_entrez_dt)) {
@@ -148,11 +163,15 @@ if(computCorrTCGA) {
     }
   }  
   
-  stopifnot(!is.na(all_tfms_dt_tcga))
+  # stopifnot(!is.na(all_tfms_dt_tcga))
   
   outFile <- file.path(outFolder,"all_tfms_dt_tcga.Rdata" )
   save(all_tfms_dt_tcga, file=outFile)
   cat(paste0("... written: ", outFile, "\n"))
+  
+  # stopifnot(!is.na(all_tfms_dt_tcga))
+  # some NA because some genes have 0 counts for all samples
+  
   
 } else {
   outFile <- file.path(outFolder,"all_tfms_dt_tcga.Rdata" )
@@ -160,18 +179,15 @@ if(computCorrTCGA) {
   
 }
 
-
+all_tfms_dt_tcga <- na.omit(all_tfms_dt_tcga)
 
 ###################### COMPARE PROTEO DATA
 
 if(computCorrProteo) {
-  cond1="LumB"
-  cond2="LumA"
   inFolder <- file.path("VIPER_COND1COND2_NETWORKS_PROTEO_JOHANSSON", paste0("test_", cond1, "_vs_ref_", cond2))
   outFile <- file.path(inFolder, "mrs_brca_regul.Rdata")
   brca_regul <- get(load(file=outFile))
   brca_regul_filt3 <- brca_regul
-  cat(paste0("... written: ", outFile, "\n"))
   
   proteo_dt <- read.delim("data/johansson_data_relative_ratios_to_pool.csv", sep=",")
   stopifnot(!duplicated(proteo_dt$gene_symbol))
@@ -191,7 +207,10 @@ if(computCorrProteo) {
   stopifnot(all_tfms_dt$g2 %in% rownames(proteo_dt))
   
   all_tfms_dt_proteo <- all_tfms_dt
+  cat(paste0("... start computing corr proteo\n"))
+  
   all_tfms_dt_proteo$prot_corr <-foreach(i = 1:nrow(all_tfms_dt_proteo), .combine='c') %dopar% {
+    cat(paste0(i, "/", nrow(all_tfms_dt_proteo), "\n"))
     g1 <- all_tfms_dt_proteo$g1[i]
     g2 <- all_tfms_dt_proteo$g2[i]
     if(g1 %in% rownames(proteo_dt) & g2 %in% rownames(proteo_dt)) {
@@ -210,16 +229,38 @@ if(computCorrProteo) {
   all_tfms_dt_proteo <- get(load(outFile))
 }
 
-stop("---ok\n")
-
-
-
-outFile <- file.path(outFolder, paste0("cmp_tfmodeARACNe_proteoCorr.", plotType))
-do.call(plotType, list(height=myHeight, width=myWidth))
-plot(x=all_tfms_dt$tfm,
-     y=all_tfms_dt$prot_corr,
+my_x <- all_tfms_dt_tcga$tfm
+my_y <- all_tfms_dt_tcga$prot_corr
+outFile <- file.path(outFolder, paste0("cmp_tfmodeARACNe_tcgaCorr.", plotType))
+do.call(plotType, list(outFile, height=myHeight, width=myWidth))
+plot(x=my_x,
+     y=my_y,
+     pch=16, 
+     cex=0.7,
      xlab="ARACNe TFm",
-     ylab="proteo corr.")
-mtext(side=3, text=paste0("proteo corr: ", cond1, "+", cond2, " data"))
+     ylab="TCGA corr.")
+abline(lm(my_y~my_x), col="red")
+legend("topleft", bty="n", legend=paste0("corr=", round(cor(my_y, my_x), 3)))
+mtext(side=3, text=paste0("TCGA corr: ", cond1, "+", cond2, " data (random subsamp n=", nrow(all_tfms_dt_tcga), ")"))
 foo <- dev.off()
 cat(paste0("... written: ", outFile, "\n"))
+
+my_x <- all_tfms_dt_proteo$tfm
+my_y <- all_tfms_dt_proteo$prot_corr
+outFile <- file.path(outFolder, paste0("cmp_tfmodeARACNe_proteoCorr.", plotType))
+do.call(plotType, list(outFile,height=myHeight, width=myWidth))
+plot(x=all_tfms_dt_proteo$tfm,
+     y=all_tfms_dt_proteo$prot_corr,
+     pch=16, 
+     cex=0.7,
+     xlab="ARACNe TFm",
+     ylab="proteo corr.")
+abline(lm(my_y~my_x), col="red")
+legend("topleft", bty="n", legend=paste0("corr=", round(cor(my_y, my_x), 3)))
+mtext(side=3, text=paste0("proteo corr: ", cond1, "+", cond2, " data (n=", nrow(all_tfms_dt_proteo), ")"))
+foo <- dev.off()
+cat(paste0("... written: ", outFile, "\n"))
+
+stop("*** DONE\n")
+stop("---ok\n")
+

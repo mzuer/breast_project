@@ -288,6 +288,7 @@ my_plot_ora_single <- function(to_plot_dt, ordr_by = "p.adjust", nTopORA =10,pv_
   
   to_plot_dt$GeneSet <- to_plot_dt$ID
   to_plot_dt$GeneSet <- gsub("^GO_", "", to_plot_dt$GeneSet)
+  to_plot_dt$GeneSet <- gsub("^GO.+?_", "", to_plot_dt$GeneSet)
   to_plot_dt$GeneSet <- stringr::str_wrap(to_plot_dt$GeneSet, width = 20)
   
   if(plotLog10) {

@@ -43,6 +43,7 @@ dir.create(outFolder, recursive=TRUE)
 computeNullModel <- F
 runMSviper <- F
 runViper <- F
+computeGO <- FALSE
 
 library(aracne.networks)
 data("regulonbrca")
@@ -215,37 +216,37 @@ stopifnot(dim(cond2_dt) > 0)
 
 cond12_dt <- cbind(cond1_dt, cond2_dt)
 
-### check how many go in the same direction in prot data
-all_tfms_dt <- do.call(rbind, lapply(1:length(brca_regul_filt3), function(x) { 
-  tfm <- brca_regul_filt3[[x]][["tfmode"]]
-  data.frame(g1=names(brca_regul_filt3)[x],
-             g2=names(tfm),
-             tfm = as.numeric(tfm),
-             stringsAsFactors = FALSE)
-}))
-stopifnot(all_tfms_dt$g1 %in% rownames(cond12_dt))
-stopifnot(all_tfms_dt$g2 %in% rownames(cond12_dt))
-
-all_tfms_dt$prot_corr <-foreach(i = 1:nrow(all_tfms_dt), .combine='c') %dopar% {
-  g1 <- all_tfms_dt$g1[i]
-  g2 <- all_tfms_dt$g2[i]
-  if(g1 %in% rownames(cond12_dt) & g2 %in% rownames(cond12_dt)) {
-    cor(as.numeric(cond12_dt[paste0(g1),]), as.numeric(cond12_dt[paste0(g2),]))
-  } else {
-    NA
-  }
-}
-stopifnot(!is.na(all_tfms_dt))
-
-outFile <- file.path(outFolder, paste0("cmp_tfmodeARACNe_proteoCorr.", plotType))
-do.call(plotType, list(height=myHeight, width=myWidth))
-plot(x=all_tfms_dt$tfm,
-     y=all_tfms_dt$prot_corr,
-     xlab="ARACNe TFm",
-     ylab="proteo corr.")
-mtext(side=3, text=paste0("proteo corr: ", cond1, "+", cond2, " data"))
-foo <- dev.off()
-cat(paste0("... written: ", outFile, "\n"))
+            # ### check how many go in the same direction in prot data
+            # all_tfms_dt <- do.call(rbind, lapply(1:length(brca_regul_filt3), function(x) { 
+            #   tfm <- brca_regul_filt3[[x]][["tfmode"]]
+            #   data.frame(g1=names(brca_regul_filt3)[x],
+            #              g2=names(tfm),
+            #              tfm = as.numeric(tfm),
+            #              stringsAsFactors = FALSE)
+            # }))
+            # stopifnot(all_tfms_dt$g1 %in% rownames(cond12_dt))
+            # stopifnot(all_tfms_dt$g2 %in% rownames(cond12_dt))
+            # 
+            # all_tfms_dt$prot_corr <-foreach(i = 1:nrow(all_tfms_dt), .combine='c') %dopar% {
+            #   g1 <- all_tfms_dt$g1[i]
+            #   g2 <- all_tfms_dt$g2[i]
+            #   if(g1 %in% rownames(cond12_dt) & g2 %in% rownames(cond12_dt)) {
+            #     cor(as.numeric(cond12_dt[paste0(g1),]), as.numeric(cond12_dt[paste0(g2),]))
+            #   } else {
+            #     NA
+            #   }
+            # }
+            # stopifnot(!is.na(all_tfms_dt))
+            # 
+            # outFile <- file.path(outFolder, paste0("cmp_tfmodeARACNe_proteoCorr.", plotType))
+            # do.call(plotType, list(height=myHeight, width=myWidth))
+            # plot(x=all_tfms_dt$tfm,
+            #      y=all_tfms_dt$prot_corr,
+            #      xlab="ARACNe TFm",
+            #      ylab="proteo corr.")
+            # mtext(side=3, text=paste0("proteo corr: ", cond1, "+", cond2, " data"))
+            # foo <- dev.off()
+            # cat(paste0("... written: ", outFile, "\n"))
 
 ### try with brca_regul3
 brca_regul <- brca_regul_filt3
@@ -253,6 +254,18 @@ brca_regul <- brca_regul_filt3
 outFile <- file.path(outFolder, "mrs_brca_regul.Rdata")
 save(brca_regul, file=outFile)
 cat(paste0("... written: ", outFile, "\n"))
+
+brca_regul_l <- unlist(lapply(brca_regul, function(x) length(x[["tfmode"]])))
+
+outFile <- file.path(outFolder, paste0("regulons_for_viper_density.", plotType))
+do.call(plotType, list(outFile, height=myHeight, width=myWidth))
+plot(density(brca_regul_l))
+mtext(side=3, text=paste0("size of regulons for VIPER (n=", length(brca_regul_l) ,")"))
+legend("topright", legend=paste0("range: ", paste0(range(brca_regul_l), collapse="-"), " (mean=", round(mean(brca_regul_l),2), ")"), bty="n")
+foo <- dev.off()
+cat(paste0("... written: ", outFile, "\n"))
+
+
 # stop("---ok\n")
 ####################################
 ### Master Regulator Analysis performed by msVIPER
@@ -408,52 +421,90 @@ cat(paste0("... written: ", outFile, "\n"))
 
 go_mrs_dt <- mrs_summary_all[mrs_summary_all$FDR <= viper_fdrThresh_forGO,]
 
-cat(paste0("... doing GO for FDR <= ", viper_fdrThresh_forGO, " modules :\n"))
-cat(paste0("... ", nrow(go_mrs_dt), "/", nrow(mrs_summary_all), "\n"))
-
-gmt_in <- read_gmt(gmt_file)
-message("Using all genes in GMT file as universe.")
-allgenes <- unique(gmt_in[, "gene"])
-
-
-### mz added: do enrichment for the ms
-# getMethod("mod_ora", "CEMiTool")
-# CEMiTool:::ora)
-
-cat(paste0("... start computing ORA\n"))
-
-mods <- lapply(go_mrs_dt$Regulon, function(x) names(brca_regul[[x]][["tfmode"]]))
-names(mods) <- go_mrs_dt$Regulon
-
-res_list <- lapply(names(mods), CEMiTool:::ora, gmt_in, allgenes, mods)
-
-if (all(lapply(res_list, nrow) == 0)) {
-  warning("Enrichment is NULL. Either your gmt file is inadequate or your modules really aren't enriched for any of the pathways in the gmt file.")
-  # return(cem)
-  ora_res <- NULL
+if(computeGO) {
+  cat(paste0("... doing GO for FDR <= ", viper_fdrThresh_forGO, " modules :\n"))
+  cat(paste0("... ", nrow(go_mrs_dt), "/", nrow(mrs_summary_all), "\n"))
+  
+  gmt_in <- read_gmt(gmt_file)
+  message("Using all genes in GMT file as universe.")
+  allgenes <- unique(gmt_in[, "gene"])
+  
+  
+  ### mz added: do enrichment for the ms
+  # getMethod("mod_ora", "CEMiTool")
+  # CEMiTool:::ora)
+  
+  cat(paste0("... start computing ORA\n"))
+  
+  mods <- lapply(go_mrs_dt$Regulon, function(x) names(brca_regul[[x]][["tfmode"]]))
+  names(mods) <- go_mrs_dt$Regulon
+  
+  res_list <- lapply(names(mods), CEMiTool:::ora, gmt_in, allgenes, mods)
+  
+  if (all(lapply(res_list, nrow) == 0)) {
+    warning("Enrichment is NULL. Either your gmt file is inadequate or your modules really aren't enriched for any of the pathways in the gmt file.")
+    # return(cem)
+    ora_res <- NULL
+  } else {
+    names(res_list) <- names(mods)
+    ora_res <- lapply(names(res_list), function(x) {
+      if (nrow(res_list[[x]]) > 0) {
+        as.data.frame(cbind(x, res_list[[x]]))
+      }
+    })
+    ora_res_dt <- do.call(rbind, ora_res)
+    names(ora_res_dt)[names(ora_res_dt) == "x"] <- "Module"
+    rownames(ora_res_dt) <- NULL
+  }
+  cat(paste0("... keeping GO with adj. pval <= ", go_signifThresh, "\n"))
+  cat(paste0("... ", nrow(ora_res_dt_signif), "/", nrow(ora_res_dt), "\n"))
+  
+  
+  ora_res_dt_signif <- ora_res_dt[ora_res_dt$p.adjust <= go_signifThresh,]
+  
+  ora_res_dt_maxSignif <- do.call(rbind, by(ora_res_dt,ora_res_dt$Module, function(x) x[which.min(x$p.adjust),]))
+  grep("prolif", ora_res_dt_signif$Description)
+  
+  
+  outFile <- file.path(outFolder, "ora_res_dt_signif.Rdata")
+  save(ora_res_dt_signif, file=outFile)
+  cat(paste0("... written: ", outFile, "\n"))
+  
 } else {
-  names(res_list) <- names(mods)
-  ora_res <- lapply(names(res_list), function(x) {
-    if (nrow(res_list[[x]]) > 0) {
-      as.data.frame(cbind(x, res_list[[x]]))
-    }
-  })
-  ora_res_dt <- do.call(rbind, ora_res)
-  names(ora_res_dt)[names(ora_res_dt) == "x"] <- "Module"
-  rownames(ora_res_dt) <- NULL
+  outFile <- file.path(outFolder, "ora_res_dt_signif.Rdata")
+  ora_res_dt_signif <- get(load(outFile))
 }
 
-ora_res_dt_signif <- ora_res_dt[ora_res_dt$p.adjust <= go_signifThresh,]
+tmp_dt <- do.call(rbind, by(ora_res_dt_signif, ora_res_dt_signif$Module, function(x) {
+  x <- x[order(x$p.adjust, decreasing = FALSE),]
+  x$GO_rank <- 1:nrow(x)
+  x
+}))
 
-outFile <- file.path(outFolder, "ora_res_dt_signif.Rdata")
-save(ora_res_dt_signif, file=outFile)
+tmp2 <- mrs_summary_all
+tmp2 <- tmp2[order(tmp2$FDR, tmp2$p.value, decreasing = FALSE),]
+tmp2$reg_rank <- 1:nrow(tmp2)
+stopifnot(!duplicated(tmp2$Regulon))
+mr_rank <- setNames(tmp2$reg_rank, tmp2$Regulon)
+mr_size <- setNames(tmp2$Size, tmp2$Regulon)
+
+prolif_gos <- tmp_dt[tmp_dt$p.adjust <= 0.05,]
+prolif_gos <- prolif_gos[grepl("PROLIFERATION", prolif_gos$ID),]
+
+prolif_tgts <- sapply(prolif_gos$Module, function(x) paste0(names(brca_regul[[x]][["tfmode"]]), collapse=","))
+prolif_gos$tgts <-prolif_tgts
+prolif_gos$module_rank <- mr_rank[paste0(prolif_gos$Module)]
+stopifnot(!is.na(prolif_gos$module_rank))
+prolif_gos$module_size <- mr_size[paste0(prolif_gos$Module)]
+stopifnot(!is.na(prolif_gos$module_size))
+
+prolif_gos <- prolif_gos[order(prolif_gos$module_rank, prolif_gos$GO_rank, decreasing = FALSE),]
+outFile <- file.path(outFolder, paste0(cond1, "_vs_", cond2, "_go_prolif.txt"))
+write.table(prolif_gos, file = outFile, col.names=T, row.names=F, sep="\t", quote=F)
 cat(paste0("... written: ", outFile, "\n"))
 
-cat(paste0("... keeping GO with adj. pval <= ", go_signifThresh, "\n"))
-cat(paste0("... ", nrow(ora_res_dt_signif), "/", nrow(ora_res_dt), "\n"))
 
-ora_res_dt_maxSignif <- do.call(rbind, by(ora_res_dt,ora_res_dt$Module, function(x) x[which.min(x$p.adjust),]))
-grep("prolif", ora_res_dt_signif$Description)
+
 
 go_signif_countdt <- data.frame(table(ora_res_dt_signif$ID))
 go_signif_countdt <- go_signif_countdt[order(go_signif_countdt$Freq, decreasing = TRUE),]
@@ -479,6 +530,44 @@ for(i in 1:length(all_mods)) {
   ggsave(p, file = outFile, width=myWidthGG*1.5, height=myHeightGG)
   cat(paste0("... written: ", outFile, "\n"))
 }
+
+
+
+
+all_mods <- unique(prolif_gos$Module)
+
+#### 
+nToPlot <- 10
+for(i in 1:length(all_mods)) {
+  i_reg <- all_mods[i]
+  stopifnot(i_reg %in% names(brca_regul))
+  moi_genes <- names(brca_regul[[paste0(i_reg)]][["tfmode"]])
+  moi_genes <- c(i_reg, moi_genes)
+  stopifnot(moi_genes %in% de_topTable_dt$gene)
+  if(length(moi_genes) >1) {
+    stopifnot(moi_genes %in% rownames(cond12_dt))
+    # p <- plot_mymodule(module_genes=c(moi_genes), prot_dt=cond12_dt,
+    #                    cond1_s=cond1_samps, cond2_s=cond2_samps,
+    #                    meanExprThresh=1, absLog2fcThresh=0.5 )
+    # use logFC and threshold from the DE data
+    p <- plot_mymodule_v2(module_genes=c(moi_genes), 
+                          prot_dt=cond12_dt, de_dt=de_topTable_dt,
+                          cond1_s=cond1_samps, cond2_s=cond2_samps,
+                          pvalThresh=pvalThresh_plot, absLogFCThresh=fcThresh_plot ) + 
+      ggtitle(paste0(i_reg, " reg."), subtitle=paste0(length(moi_genes),
+                                                      " tgts (before pval<=", pvalThresh_plot, " & absLogFC>=", fcThresh_plot, ")"))
+  
+  if(!is.na(p)) {
+    outFile <- file.path(outFolder, paste0(i_reg, "_network_fc_corr_prolifReg.", plotType))
+    ggsave(p, filename=outFile, height=myHeightGG, width=myWidthGG)
+    cat(paste0("... written: ", outFile, "\n"))
+  }
+  }
+}
+
+
+
+
 
 
 
