@@ -14,6 +14,7 @@ cond1 <- "LumB"
 cond2 <- "LumA"
 annotCol <- "PAM50.subtype"
 
+de_file <- file.path("STRINGDB_COND1_COND2_PROTEO_JOHANSSON/test_LumB_vs_ref_LumA/DE_topTable.Rdata")
 
 # how many rows to put in the summary tables
 nSum <- 25
@@ -47,6 +48,10 @@ library(aracne.networks)
 data("regulonbrca")
 
 gmt_file <- file.path("c5.go.bp.v7.4.symbols.gmt")
+
+go_signifThresh <- 0.05
+nTopORA <- 10
+viper_fdrThresh_forGO <- 0.1
 
 ### not enough samples to run ARACne ??!
 
@@ -350,7 +355,8 @@ outFile <- file.path(outFolder, "mrs_summary_all.Rdata")
 save(mrs_summary_all, file=outFile)
 cat(paste0("... written: ", outFile, "\n"))
 
-de_topTable_dt <- get(load("STRINGDB_COND1_COND2_PROTEO_JOHANSSON/test_LumB_vs_ref_LumA/DE_topTable.Rdata"))
+
+de_topTable_dt <- get(load(de_file))
 
 #### 
 nToPlot <- 10
@@ -400,10 +406,9 @@ cat(paste0("... written: ", outFile, "\n"))
 
 ########################################## ORA
 
-go_fdr_thresh <- 0.1
-go_mrs_dt <- mrs_summary_all[mrs_summary_all$FDR <= go_fdr_thresh,]
+go_mrs_dt <- mrs_summary_all[mrs_summary_all$FDR <= viper_fdrThresh_forGO,]
 
-cat(paste0("... doing GO for FDR <= ", go_fdr_thresh, " modules :\n"))
+cat(paste0("... doing GO for FDR <= ", viper_fdrThresh_forGO, " modules :\n"))
 cat(paste0("... ", nrow(go_mrs_dt), "/", nrow(mrs_summary_all), "\n"))
 
 gmt_in <- read_gmt(gmt_file)
@@ -437,7 +442,7 @@ if (all(lapply(res_list, nrow) == 0)) {
   names(ora_res_dt)[names(ora_res_dt) == "x"] <- "Module"
   rownames(ora_res_dt) <- NULL
 }
-go_signifThresh <- 0.05
+
 ora_res_dt_signif <- ora_res_dt[ora_res_dt$p.adjust <= go_signifThresh,]
 
 outFile <- file.path(outFolder, "ora_res_dt_signif.Rdata")
@@ -458,55 +463,22 @@ outFile <- file.path(outFolder, paste0(cond1, "_vs_", cond2, "_goFreq_dt.txt"))
 write.table(go_signif_countdt, file = outFile, col.names=T, row.names=F, sep="\t", quote=F)
 cat(paste0("... written: ", outFile, "\n"))
 
+all_mods <- unique(ora_res_dt_signif$Module)
 
-plot_ora_single(head(x, n = n), pv_cut = pv_cut, 
-                graph_color = mod_cols[unique(x$Module)], title = unique(x$Module), 
-                ...)
+for(i in 1:length(all_mods)) {
   
-> CEMiTool:::plot_ora_single
-function (es, ordr_by = "p.adjust", max_length = 50, pv_cut = 0.05, 
-          graph_color = "#4169E1", title = "Over Representation Analysis") 
-{
-  comsub <- function(x) {
-    d_x <- strsplit(x[c(1, length(x))], "")
-    der_com <- match(FALSE, do.call("==", d_x)) - 1
-    return(substr(x, 1, der_com + 1))
-  }
-  es[, "GeneSet"] <- es[, "ID"]
-  ovf_rows <- which(nchar(es[, "GeneSet"]) > max_length)
-  ovf_data <- es[ovf_rows, "GeneSet"]
-  test <- strtrim(ovf_data, max_length)
-  dupes <- duplicated(test) | duplicated(test, fromLast = TRUE)
-  if (sum(dupes) > 0) {
-    test[dupes] <- ovf_data[dupes]
-    test[dupes] <- comsub(test[dupes])
-    max_length <- max(nchar(test))
-  }
-  es[ovf_rows, "GeneSet"] <- paste0(strtrim(test, max_length), 
-                                    "...")
-  es[, "GeneSet"] <- stringr::str_wrap(es[, "GeneSet"], width = 20)
-  lvls <- es[order(es[, ordr_by], decreasing = TRUE), "GeneSet"]
-  es[, "GeneSet"] <- factor(es[, "GeneSet"], levels = lvls)
-  es[, "alpha"] <- 1
-  es[es[, ordr_by] > pv_cut, "alpha"] <- 0
-  es[es[, ordr_by] > 0.8, ordr_by] <- 0.8
-  my_squish <- function(...) {
-    return(scales::squish(..., only.finite = FALSE))
-  }
-  y_axis <- paste("-log10(", ordr_by, ")")
-  pl <- ggplot(es, aes_string(x = "GeneSet", y = y_axis, alpha = "alpha", 
-                              fill = y_axis)) + geom_bar(stat = "identity") + theme(axis.text = element_text(size = 8), 
-                                                                                    legend.title = element_blank()) + coord_flip() + scale_alpha(range = c(0.4, 
-                                                                                                                                                           1), guide = "none") + labs(y = "-log10(adjusted p-value)", 
-                                                                                                                                                                                      title = title, x = "") + geom_hline(yintercept = -log10(pv_cut), 
-                                                                                                                                                                                                                          colour = "grey", linetype = "longdash") + scale_fill_gradient(low = "gray", 
-                                                                                                                                                                                                                                                                                        high = graph_color, limits = c(2, 5), oob = my_squish)
-  res <- list(pl = pl, numsig = sum(es[, ordr_by] < pv_cut, 
-                                    na.rm = TRUE))
-  return(res)
+  i_reg <- all_mods[i]
+  
+  to_plot_dt <- ora_res_dt_signif[ora_res_dt_signif$Module==i_reg,]
+  
+  p <- my_plot_ora_single (to_plot_dt, ordr_by = "p.adjust", nTopORA =10,pv_cut = 0.05 , plotLog10=TRUE,
+                      graph_color = "#4169E1", title = "Over Representation Analysis") +
+   ggtitle("Over Representation Analysis" , subtitle=paste0(i_reg, " reg."))
+  
+  outFile <- file.path(outFolder, paste0(i_reg, "_reg_goORA.", plotType))
+  ggsave(p, file = outFile, width=myWidthGG*1.5, height=myHeightGG)
+  cat(paste0("... written: ", outFile, "\n"))
 }
-<bytecode: 0x55a3f7d4f458>
-  <enviro
 
 
 

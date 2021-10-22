@@ -279,4 +279,40 @@ plot_mymodule_v2 <- function(module_genes, prot_dt, de_dt, cond1_s, cond2_s,
 
 
 
+my_plot_ora_single <- function(to_plot_dt, ordr_by = "p.adjust", nTopORA =10,pv_cut = 0.05 , plotLog10 = TRUE,
+                               graph_color = "#4169E1", title = "Over Representation Analysis") {
+  
+  to_plot_dt <- to_plot_dt[order(to_plot_dt[,paste0(ordr_by)], decreasing = FALSE),]
+  to_plot_dt <- to_plot_dt[1:nTopORA,]
+  to_plot_dt <- to_plot_dt[nTopORA:1,]
+  
+  to_plot_dt$GeneSet <- to_plot_dt$ID
+  to_plot_dt$GeneSet <- gsub("^GO_", "", to_plot_dt$GeneSet)
+  to_plot_dt$GeneSet <- stringr::str_wrap(to_plot_dt$GeneSet, width = 20)
+  
+  if(plotLog10) {
+    to_plot_dt$varPlot <- -log10(unlist(to_plot_dt[ordr_by]))
+    y_axis <- paste("-log10(", ordr_by, ")")
+    
+  } else {
+    to_plot_dt$varPlot <- to_plot_dt[ordr_by]
+    y_axis <- paste("", ordr_by, "")
+    
+  }
+  
+  to_plot_dt$GeneSet <- factor(to_plot_dt$GeneSet, levels = to_plot_dt$GeneSet)  
+  
+  p1 <- ggplot(to_plot_dt, aes_string(x = "GeneSet", y = paste0("varPlot"), 
+                                      fill = "varPlot")) + 
+    geom_bar(stat = "identity") + 
+    theme(axis.text = element_text(size = 8), legend.title = element_blank()) + 
+    coord_flip() + 
+    labs(y = paste0("-log10(", ordr_by, ")"), title = title, x = "") + 
+    geom_hline(yintercept = -log10(pv_cut), colour = "grey", linetype = "longdash") + 
+    scale_fill_gradient(low = "gray", high = graph_color)
+  
+  return(p1)
+}
+
+
 

@@ -35,6 +35,9 @@ library(igraph)
 library(foreach)
 source("breast_utils.R")
 
+pvalThresh_plot <- 0.05
+fcThresh_plot <- 0.1
+
 # look at the size of aracne regulon
 
 min_mod_size <- min(unlist(lapply(regulonbrca, function(x)length(x[["tfmode"]]))))
@@ -257,6 +260,8 @@ cem_cond12 <- mod_ora(cem_cond12, gmt_in)
 cem_cond12 <- plot_ora(cem_cond12)
 ora_plots <- show_plot(cem_cond12, "ora")
 
+de_topTable_dt <- get(load(de_file))
+
 for(i in 1:length(ora_plots)) {
   outFile <- file.path(outFolder, paste0(names(ora_plots)[i], "_GO_ora.", plotType))
   ggsave(ora_plots[[i]][["pl"]], filename = outFile, height=myHeightGG, width=myWidthGG)
@@ -265,17 +270,23 @@ for(i in 1:length(ora_plots)) {
   ### if some signif GO -> to plot
   if(ora_plots[[i]][["numsig"]] > 0) {
     
-    
-    
     mg_dt <- module_genes(cem_cond12)
     moi <- names(ora_plots)[i]
     g_moi <- mg_dt$genes[mg_dt$modules == moi]
     
     if(length(g_moi) > 1) {
       
-      p <- plot_mymodule(module_genes=g_moi, prot_dt=cond12_dt,
-                         cond1_s=cond1_samps, cond2_s=cond2_samps,
-                         meanExprThresh=1, absLog2fcThresh=0.5)
+      # p <- plot_mymodule(module_genes=g_moi, prot_dt=cond12_dt,
+      #                    cond1_s=cond1_samps, cond2_s=cond2_samps,
+      #                    meanExprThresh=1, absLog2fcThresh=0.5)
+      
+      p <- plot_mymodule_v2(module_genes=c(g_moi), 
+                            prot_dt=cond12_dt, de_dt=de_topTable_dt,
+                            cond1_s=cond1_samps, cond2_s=cond2_samps,
+                            pvalThresh=pvalThresh_plot, absLogFCThresh=fcThresh_plot ) + 
+        ggtitle(paste0(i_reg, " reg."), subtitle=paste0(length(moi_genes),
+        " tgts (before pval<=", pvalThresh_plot, " & absLogFC>=", fcThresh_plot, ")"))
+      
       
       # can be NA if after filtering less than 2 genes
       if(!is.na(p)) {
