@@ -55,8 +55,8 @@ string_db <- STRINGdb$new( species=9606)
 nTop <- 10
 
 plotType <- "png"
-myWidth <- 1000
-myHeight <- 1000
+myWidth <- 400
+myHeight <- 400
 
 
 # post payload information to the STRING server
@@ -108,23 +108,32 @@ reg_ppiP <- setNames(out_dt$enrichment, out_dt$reg)
 stopifnot(setequal(names(reg_viperP), names(reg_ppiP)))
 myregs <- names(reg_viperP)
 
+outFile <- file.path(outFolder, paste0("ppiPval_vs_viperPval.", plotType))
+do.call(plotType, list(outFile, height=myHeight, width=myWidth))
 plot(
   x = reg_viperP[myregs],
   y = reg_ppiP[myregs],
   cex=0.7,
   pch=16,
+  cex.lab=1.2,
+  cex.main=1.2,
   xlab="viper FDR",
   ylab="PPI p-val"
 )
 abline(h=0.05, col="red")
 abline(v=0.05, col="red")
 mtext(side=3, text=paste0("# reg = ", length(myregs)))
+foo <- dev.off()
+cat(paste0("... written: ", outFile, "\n"))
 
-
+outFile <- file.path(outFolder, paste0("ppiPval_vs_viperPval_log10.", plotType))
+do.call(plotType, list(outFile, height=myHeight, width=myWidth))
 plot(
-  x = -log10(reg_viperP[myregs+0.01]),
+  x = -log10(reg_viperP[myregs]+0.01),
   y = -log10(reg_ppiP[myregs]+0.01),
   cex=0.7,
+  cex.lab=1.2,
+  cex.main=1.2,
   pch=16,
   xlab="viper FDR [-log10]",
   ylab="PPI p-val [-log10]"
@@ -132,8 +141,10 @@ plot(
 abline(h=-log10(0.05), col="red")
 abline(v=-log10(0.05), col="red")
 mtext(side=3, text=paste0("# reg = ", length(myregs)))
+foo <- dev.off()
+cat(paste0("... written: ", outFile, "\n"))
 
-
+stop("--ok\n")
 
 for(i in 1:nTop) {
   i_reg <- mrs_summary_all$Regulon[i]
