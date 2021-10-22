@@ -388,11 +388,14 @@ for(i in 1:nToPlot) {
     p <- plot_mymodule_v2(module_genes=c(moi_genes), 
                           prot_dt=cond12_dt, de_dt=de_topTable_dt,
                        cond1_s=cond1_samps, cond2_s=cond2_samps,
-                       pvalThresh=pvalThresh_plot, absLogFCThresh=fcThresh_plot ) + 
-    ggtitle(paste0(i_reg, " reg."), subtitle=paste0(length(moi_genes),
-                                                    " tgts (before pval<=", pvalThresh_plot, " & absLogFC>=", fcThresh_plot, ")"))
+                       pvalThresh=pvalThresh_plot, absLogFCThresh=fcThresh_plot ) 
   }
   if(!is.na(p)) {
+    p <- p+ 
+      ggtitle(paste0(i_reg, " reg."), subtitle=paste0(length(moi_genes),
+                                                      " tgts (before pval<=", pvalThresh_plot, " & absLogFC>=", fcThresh_plot, ")"))
+    
+    
     outFile <- file.path(outFolder, paste0(i_reg, "_network_fc_corr.", plotType))
     ggsave(p, filename=outFile, height=myHeightGG, width=myWidthGG)
     cat(paste0("... written: ", outFile, "\n"))

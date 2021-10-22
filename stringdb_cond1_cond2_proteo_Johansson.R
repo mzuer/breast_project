@@ -119,7 +119,7 @@ DE_topTable <- topTable(eb_fit, coef=ncol(v$design), number=Inf, sort.by="p") ##
 #   expr = c(cond1_dt[geneName,], cond2_dt[geneName,]),
 #   stringsAsFactors = FALSE
 # )
-# ggboxplot(data=plot_dt, x="cond", y="expr")
+# require(ggpubr)
 # ggboxplot(data=plot_dt, x="cond", y="expr")
 
 ### initialization
@@ -206,15 +206,45 @@ clustersList <- string_db$get_clusters(DE_topTable_mpd_pval05$STRING_id)
 cat(paste0("... ", nrow(DE_topTable_mpd_pval05), " proteins (signif. only)\n"))
 cat(paste0("... clustered in ", length(clustersList), " clusters\n"))
 
+stopifnot(!duplicated( unlist(clustersList)))
+cl_l <- unlist(lapply(clustersList, length))
+
+outFile <- file.path(outFolder, paste0("nbrGenes_byModules_clustersSignif.", plotType))
+do.call(plotType, list(outFile, height=myHeight, width=myWidth))
+plot(density(cl_l))
+mtext(side=3, text=paste0("# modules = ", length(clustersList)))
+foo <- dev.off()
+cat(paste0("... written: ", outFile, "\n"))
+
+### code chunk number 15: clustering on full network
+
+clustersList_full <- string_db$get_clusters(DE_topTable_mpd$STRING_id)
+
+cat(paste0("... ", nrow(DE_topTable_mpd), " proteins (all)\n"))
+cat(paste0("... clustered in ", length(clustersList_full), " clusters\n"))
+
+stopifnot(!duplicated( unlist(clustersList_full)))
+cl_l_full <- unlist(lapply(clustersList_full, length))
+
+outFile <- file.path(outFolder, paste0("nbrGenes_byModules_clustersAll.", plotType))
+do.call(plotType, list(outFile, height=myHeight, width=myWidth))
+plot(density(cl_l_full))
+mtext(side=3, text=paste0("# modules = ", length(clustersList_full)))
+foo <- dev.off()
+cat(paste0("... written: ", outFile, "\n"))
+
+
 
 ###################################################
 ### code chunk number 17: clustering2
 ###################################################
 
-for(i in seq(1:4)){
+clustersList_to_plot <- clustersList[which(cl_l > 2)]
+
+for(i in 1:length(clustersList_to_plot)){
   outFile <- file.path(outFolder, paste0("ppi_plot_cluster", i, ".", plotType))
   do.call(plotType, list(outFile, height=myHeight, width=myWidth))
-  string_db$plot_network(clustersList[[i]])
+  string_db$plot_network(clustersList_to_plot[[i]], payload_id=payload_id )
   foo <- dev.off()
   cat(paste0("... written: ", outFile, "\n"))  
 }

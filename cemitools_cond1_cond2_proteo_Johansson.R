@@ -273,9 +273,24 @@ cat(paste0("... written: ", outFile, "\n"))
 de_topTable_dt <- get(load(de_file))
 
 for(i in 1:length(ora_plots)) {
+  
+  cat(paste0("... i = ", i, "\n"))
+  
   outFile <- file.path(outFolder, paste0(names(ora_plots)[i], "_GO_ora.", plotType))
-  ggsave(ora_plots[[i]][["pl"]], filename = outFile, height=myHeightGG, width=myWidthGG)
+  ggsave(ora_plots[[i]][["pl"]], filename = outFile, height=myHeightGG, width=myWidthGG*1.8)
   cat(paste0("... written: ", outFile, "\n"))
+  
+  to_plot_dt <- cem_cond12@ora[cem_cond12@ora$Module == names(ora_plots)[i],]
+  
+    p <- my_plot_ora_single(to_plot_dt, ordr_by = "p.adjust", nTopORA =10,pv_cut = 0.05 , plotLog10=TRUE,
+                           graph_color = "#4169E1", title = "Over Representation Analysis") +
+    ggtitle("Over Representation Analysis" , subtitle=paste0(names(ora_plots)[i]))
+  
+    
+    outFile <- file.path(outFolder, paste0(names(ora_plots)[i], "_GO_ora_v2.", plotType))
+    ggsave(p, file = outFile, width=myWidthGG*1.8, height=myHeightGG)
+    cat(paste0("... written: ", outFile, "\n"))
+    
   
   ### if some signif GO -> to plot
   if(ora_plots[[i]][["numsig"]] > 0) {
@@ -293,13 +308,14 @@ for(i in 1:length(ora_plots)) {
       p <- plot_mymodule_v2(module_genes=c(g_moi), 
                             prot_dt=cond12_dt, de_dt=de_topTable_dt,
                             cond1_s=cond1_samps, cond2_s=cond2_samps,
-                            pvalThresh=pvalThresh_plot, absLogFCThresh=fcThresh_plot ) + 
-        ggtitle(paste0(moi, ""), subtitle=paste0(length(g_moi),
-        " tgts (before pval<=", pvalThresh_plot, " & absLogFC>=", fcThresh_plot, ")"))
-      
+                            pvalThresh=pvalThresh_plot, absLogFCThresh=fcThresh_plot )
       
       # can be NA if after filtering less than 2 genes
       if(!is.na(p)) {
+        
+        p <- p+  ggtitle(paste0(moi, ""), subtitle=paste0(length(g_moi),
+                                                          " tgts (before pval<=", pvalThresh_plot, " & absLogFC>=", fcThresh_plot, ")"))
+        
         outFile <- file.path(outFolder, paste0(moi, "_network_fc_corr.", plotType))
         ggsave(p, filename=outFile, height=myHeightGG, width=myWidthGG)
         cat(paste0("... written: ", outFile, "\n"))
