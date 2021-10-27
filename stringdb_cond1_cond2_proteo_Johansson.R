@@ -108,10 +108,21 @@ cond12_dt <- cond12_dt[,c(colnames(cond1_dt), colnames(cond2_dt))]
 
 sub_labs <- factor(c(rep(cond1, ncol(cond1_dt)),rep(cond2, ncol(cond2_dt))), levels=c(cond1, cond2))
 design <- model.matrix(~ sub_labs)
+
+
+
 v <- voom(cond12_dt, design, plot=FALSE)
 fit <- lmFit(v, design)
 eb_fit <- eBayes(fit)
 DE_topTable <- topTable(eb_fit, coef=ncol(v$design), number=Inf, sort.by="p") ## if not 0+ in design -> coef=2
+
+dge <- DGEList(cond12_dt)
+dge <- calcNormFactors(dge)
+v2 <- voom(dge, design, plot=FALSE)
+fit2 <- lmFit(v2, design)
+eb_fit2 <- eBayes(fit2)
+DE_topTable2 <- topTable(eb_fit2, coef=ncol(v2$design), number=Inf, sort.by="p") ## if not 0+ in design -> coef=2
+
 
 # geneName = "COL14A1"
 # plot_dt <- data.frame(
@@ -139,6 +150,31 @@ DE_topTable$gene <- rownames(DE_topTable)
 outFile <- file.path(outFolder, "DE_topTable.Rdata")
 save(DE_topTable, file=outFile)
 cat(paste0("... written: ", outFile, "\n"))
+
+DE_topTable2 <- as.data.frame(DE_topTable2)
+DE_topTable2$gene <- rownames(DE_topTable2)
+
+outFile <- file.path(outFolder, "DE_topTable_withCNF.Rdata")
+save(DE_topTable2, file=outFile)
+cat(paste0("... written: ", outFile, "\n"))
+
+
+m_dt <- merge(DE_topTable, DE_topTable2, by="gene")
+
+plot(m_dt$adj.P.Val.x~m_dt$adj.P.Val.y)
+curve(x*1, add=T, col="red")
+cor(m_dt$adj.P.Val.x,m_dt$adj.P.Val.y) # 0.992
+m_dt$gene[order(m_dt$adj.P.Val.x)] == m_dt$gene[order(m_dt$adj.P.Val.y)]
+plot(rank(m_dt$adj.P.Val.x)~rank(m_dt$adj.P.Val.y))
+plot(m_dt$logFC.x~m_dt$logFC.y)
+curve(x*1, add=T, col="red")
+cor(m_dt$logFC.y,m_dt$logFC.x) # 0.99
+
+top50_a <- DE_topTable$gene[1:50]
+top50_b <- DE_topTable2$gene[1:50]
+length(intersect(top50_a, top50_b))
+# 46
+stop("--ok\n")
 
 ###################################################
 DE_topTable_mpd <- string_db$map( DE_topTable, "gene", removeUnmappedRows = TRUE )

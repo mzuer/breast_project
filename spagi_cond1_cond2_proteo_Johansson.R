@@ -266,7 +266,7 @@ p <- ggplot(data=common_dt, aes(x = mean_activity.x, y = mean_activity.y, label=
         panel.border = element_blank(), 
         panel.grid = element_blank())
 
-outFile <- file.path(outFolder, paste0(cond1, "_", cond2,"_intersectTFs_activity."))
+outFile <- file.path(outFolder, paste0(cond1, "_", cond2,"_intersectTFs_activity.", plotType))
 ggsave(p, filename = outFile, height=myHeightGG, width=myWidthGG)
 cat(paste0("... written: ", outFile, "\n"))
 
@@ -274,7 +274,7 @@ cat(paste0("... written: ", outFile, "\n"))
 p1 <- ggplot(data=mean_cond1_dt, aes(x = mean_activity, y = mean_TFcount, label=TF))+
   labs(x=paste0("mean activity"),
        y=paste0("TF count"),
-       title ="TF mean activity")+
+       title =paste0("TF mean activity and count (", cond1, ")"))+
   geom_point(color = "red")+
   geom_text_repel() + 
   theme_bw(base_size = 12, base_family = "") + 
@@ -287,7 +287,7 @@ p1 <- ggplot(data=mean_cond1_dt, aes(x = mean_activity, y = mean_TFcount, label=
         panel.border = element_blank(), 
         panel.grid = element_blank())
 
-outFile <- file.path(outFolder, paste0(cond1, "_TF_count_vs_activity."))
+outFile <- file.path(outFolder, paste0(cond1, "_TF_count_vs_activity.", plotType))
 ggsave(p1, filename = outFile, height=myHeightGG, width=myWidthGG)
 cat(paste0("... written: ", outFile, "\n"))
 
@@ -296,7 +296,7 @@ cat(paste0("... written: ", outFile, "\n"))
 p2 <- ggplot(data=mean_cond2_dt, aes(x = mean_activity, y = mean_TFcount, label=TF))+
   labs(x=paste0("mean activity"),
        y=paste0("TF count"),
-       title ="TF mean activity")+
+       title =paste0("TF mean activity and count (", cond2, ")"))+
   geom_point(color = "red")+
   geom_text_repel() + 
   theme_bw(base_size = 12, base_family = "") + 
@@ -309,7 +309,7 @@ p2 <- ggplot(data=mean_cond2_dt, aes(x = mean_activity, y = mean_TFcount, label=
         panel.border = element_blank(), 
         panel.grid = element_blank())
 
-outFile <- file.path(outFolder, paste0(cond2, "_TF_count_vs_activity."))
+outFile <- file.path(outFolder, paste0(cond2, "_TF_count_vs_activity.", plotType))
 ggsave(p2, filename = outFile, height=myHeightGG, width=myWidthGG)
 cat(paste0("... written: ", outFile, "\n"))
 
